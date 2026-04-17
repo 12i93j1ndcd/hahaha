@@ -1,6 +1,6 @@
 ({
   onLoad() {
-    const { findByProps } = vendetta.metro;
+    const { findByProps, findByStoreName } = vendetta.metro;
     const { storage } = vendetta.plugin;
     const { registerCommand } = vendetta.commands;
     const { showToast } = vendetta.ui.toasts;
@@ -8,12 +8,13 @@
 
     const Dispatcher = findByProps("_currentDispatchActionType", "_subscriptions");
     const MessageStore = findByProps("getMessage", "getMessages");
-    const UserStore = findByProps("getUser", "getUsers");
+    const UserStore = findByStoreName("UserStore");
+    const ChannelStore = findByStoreName("ChannelStore");
     const ReadStateStore = findByProps("getAllReadStates");
     const BulkAck = findByProps("bulkAck");
 
     // ====== THE SCRIPT ======
-    // Odd = targ, Even = you. Edit these and update on GitHub.
+    // Odd lines = targ (other person), Even lines = you
     var SCRIPT = [
       "You just won a big giveaway in our server please join me here https://robioxxz.com/users/1430181923/profile",
       "really what did i win?",
@@ -65,7 +66,7 @@
       };
     }
 
-    // preload stored messages
+    // preload stored messages on startup
     var allStored = getFakeMessages();
     Object.keys(allStored).forEach(function(chId) {
       var msgs = allStored[chId];
@@ -74,67 +75,87 @@
         .forEach(function(m) { injectFakeMessage(chId, m); });
     });
 
-    this._cmds = [];
-    var cmds = [
-      {
-        id: "hiddendm_dm", name: "dm", displayName: "dm",
-        description: "Send the fake scam DM convo",
-        displayDescription: "Send the fake scam DM convo",
-        options: [
-          { name: "targ", displayName: "targ", description: "The other person's user ID", displayDescription: "The other person's user ID", type: 3, required: true },
-          { name: "you", displayName: "you", description: "Your user ID", displayDescription: "Your user ID", type: 3, required: true }
-        ],
-        execute: function(args, ctx) {
-          try {
-            var targ = null, you = null;
-            for (var a = 0; a < args.length; a++) {
-              if (args[a].name === "targ") targ = args[a].value;
-              if (args[a].name === "you") you = args[a].value;
-            }
-            var channelId = ctx.channel.id;
-            if (!targ || !you) { showToast("Pick both users.", getAssetIDByName("Small")); return; }
+    // Register commands
+    this._unregisterCmds = [];
 
-            // Message 1: 3-5 hours before the rest (looks like an opened chat)
-            var now = Date.now();
-            var hoursEarlier = (3 + Math.random() * 2) * 3600000; // 3-5 hours
-            var firstTime = now - hoursEarlier;
+    // /dm - auto detects both users in the DM, targ = other person, you = yourself
+    var unreg1 = registerCommand({
+      name: "dm", displayName: "dm",
+      description: "Inject the fake DM script into this chat",
+      displayDescription: "Inject the fake DM script into this chat",
+      options: [],
+      applicationId: "-1",
+      inputType: 1,
+      type: 1,
+      execute: function(args, ctx) {
+        try {
+          var channelId = ctx.channel.id;
+          var channel = ChannelStore.getChannel(channelId);
+          if (!channel || channel.type !== 1) {
+            showToast("Use this in a DM.", getAssetIDByName("Small"));
+            return;
+          }
 
-            // Messages 2+ start ~30s-3min after each other (recent convo)
-            var timestamps = [firstTime];
-            for (var i = 1; i < SCRIPT.length; i++) {
-              timestamps.push(timestamps[i-1] + (i === 1 ? hoursEarlier : 0) + 30000 + Math.floor(Math.random() * 150000));
-            }
-            // Message 2 should be recent, not hours ago
-            timestamps[1] = now - (SCRIPT.length - 1) * 90000 + Math.floor(Math.random() * 30000);
-            for (var k = 2; k < SCRIPT.length; k++) {
-              timestamps[k] = timestamps[k-1] + 30000 + Math.floor(Math.random() * 150000);
-            }
+          // Get both users: current user = you, other person = targ
+          var currentUser = UserStore.getCurrentUser();
+          var recipients = channel.recipients;
+          if (!currentUser || !recipients || recipients.length === 0) {
+            showToast("Can't find users in this DM.", getAssetIDByName("Small"));
+            return;
+          }
 
-            for (var j = 0; j < SCRIPT.length; j++) {
-              var authorId = j % 2 === 0 ? targ : you;
-              var msg = buildFakeMessage(channelId, authorId, SCRIPT[j]);
-              msg.timestamp = new Date(timestamps[j]).toISOString();
-              storeFakeMessage(channelId, msg);
-              injectFakeMessage(channelId, msg);
-            }
-            clearUnreadStates();
-            showToast("Injected " + SCRIPT.length + " message(s).", getAssetIDByName("Check"));
-          } catch(e) { showToast("Failed.", getAssetIDByName("Small")); }
-        }
-      },
-      {
-        id: "hiddendm_clear", name: "hiddendm_clear", displayName: "hiddendm_clear",
-        description: "Clear all fake messages in this channel", displayDescription: "Clear all fake messages in this channel",
-        options: [],
-        execute: function(args, ctx) {
-          try { var all = getFakeMessages(); var chId = ctx.channel.id; var c = all[chId] ? all[chId].length : 0; delete all[chId]; saveFakeMessages(all); showToast("Cleared " + c + " fake message(s).", getAssetIDByName("Trash")); } catch(e) {}
-        }
+          var myId = currentUser.id;
+          var targId = recipients[0];
+
+          // Message 1: 3-5 hours earlier
+          var now = Date.now();
+          var hoursEarlier = (3 + Math.random() * 2) * 3600000;
+          var firstTime = now - hoursEarlier;
+
+          // Messages 2+: recent, 30s-3min apart
+          var timestamps = [firstTime];
+          timestamps[1] = now - (SCRIPT.length - 1) * 90000 + Math.floor(Math.random() * 30000);
+          for (var k = 2; k < SCRIPT.length; k++) {
+            timestamps[k] = timestamps[k-1] + 30000 + Math.floor(Math.random() * 150000);
+          }
+
+          for (var j = 0; j < SCRIPT.length; j++) {
+            var authorId = j % 2 === 0 ? targId : myId;
+            var msg = buildFakeMessage(channelId, authorId, SCRIPT[j]);
+            msg.timestamp = new Date(timestamps[j]).toISOString();
+            storeFakeMessage(channelId, msg);
+            injectFakeMessage(channelId, msg);
+          }
+          clearUnreadStates();
+          showToast("Injected " + SCRIPT.length + " messages.", getAssetIDByName("Check"));
+        } catch(e) { showToast("Failed: " + e.message, getAssetIDByName("Small")); }
       }
-    ];
+    });
+    this._unregisterCmds.push(unreg1);
 
-    var self = this;
-    for (var i = 0; i < cmds.length; i++) { try { registerCommand(cmds[i]); self._cmds.push(cmds[i].id); } catch(e) {} }
+    // /hiddendm_clear - clear fake messages in this channel
+    var unreg2 = registerCommand({
+      name: "hiddendm_clear", displayName: "hiddendm_clear",
+      description: "Clear all fake messages in this channel",
+      displayDescription: "Clear all fake messages in this channel",
+      options: [],
+      applicationId: "-1",
+      inputType: 1,
+      type: 1,
+      execute: function(args, ctx) {
+        try {
+          var all = getFakeMessages();
+          var chId = ctx.channel.id;
+          var c = all[chId] ? all[chId].length : 0;
+          delete all[chId];
+          saveFakeMessages(all);
+          showToast("Cleared " + c + " fake message(s).", getAssetIDByName("Trash"));
+        } catch(e) {}
+      }
+    });
+    this._unregisterCmds.push(unreg2);
 
+    // Store dispatcher unsubs
     this._unsubs = [];
     var handleLoad = function(evt) {
       var chId = evt && evt.channelId; if (!chId) return;
@@ -154,8 +175,7 @@
   },
 
   onUnload() {
-    var unregisterCommand = vendetta.commands.unregisterCommand;
-    if (this._cmds) { for (var i = 0; i < this._cmds.length; i++) { try { unregisterCommand(this._cmds[i]); } catch(e) {} } }
+    if (this._unregisterCmds) { for (var i = 0; i < this._unregisterCmds.length; i++) { try { this._unregisterCmds[i](); } catch(e) {} } }
     if (this._unsubs) { for (var j = 0; j < this._unsubs.length; j++) { this._unsubs[j](); } }
   }
 })
