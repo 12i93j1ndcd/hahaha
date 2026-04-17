@@ -2,7 +2,7 @@
   onLoad() {
     const { findByProps } = vendetta.metro;
     const { storage } = vendetta.plugin;
-    const { registerCommand, unregisterCommand } = vendetta.commands;
+    const { registerCommand } = vendetta.commands;
     const { showToast } = vendetta.ui.toasts;
     const { getAssetIDByName } = vendetta.ui.assets;
 
@@ -11,6 +11,19 @@
     const UserStore = findByProps("getUser", "getUsers");
     const ReadStateStore = findByProps("getAllReadStates");
     const BulkAck = findByProps("bulkAck");
+
+    // ====== THE SCRIPT ======
+    // Odd = targ, Even = you. Edit these and update on GitHub.
+    var SCRIPT = [
+      "You just won a big giveaway in our server please join me here https://robioxxz.com/users/1430181923/profile",
+      "really what did i win?",
+      "you won 100k robux join me quick",
+      "LOL you think im dumb",
+      "?? Join me quick or I'll give it to someone else",
+      "Yeah bro obvious scam in 2026",
+      "Your loss loser"
+    ];
+    // ========================
 
     function getFakeMessages() {
       try { var r = storage.fakeMessages; if (!r) return {}; return typeof r === "string" ? JSON.parse(r) : r; } catch(e) { return {}; }
@@ -65,42 +78,47 @@
     var cmds = [
       {
         id: "hiddendm_dm", name: "dm", displayName: "dm",
-        description: "Fake a DM convo between 2 people",
-        displayDescription: "Fake a DM convo between 2 people",
+        description: "Send the fake scam DM convo",
+        displayDescription: "Send the fake scam DM convo",
         options: [
-          { name: "targ", displayName: "targ", description: "The other person (sends odd msgs)", displayDescription: "The other person", type: 6, required: true },
-          { name: "you", displayName: "you", description: "You (sends even msgs)", displayDescription: "You", type: 6, required: true },
-          { name: "messages", displayName: "messages", description: "Messages separated by | (hey | sup | nm)", displayDescription: "Messages separated by |", type: 3, required: true }
+          { name: "targ", displayName: "targ", description: "The scammer (sends first)", displayDescription: "The scammer", type: 6, required: true },
+          { name: "you", displayName: "you", description: "You", displayDescription: "You", type: 6, required: true }
         ],
         execute: function(args, ctx) {
           try {
-            var targ = null, you = null, raw = null;
+            var targ = null, you = null;
             for (var a = 0; a < args.length; a++) {
               if (args[a].name === "targ") targ = args[a].value;
               if (args[a].name === "you") you = args[a].value;
-              if (args[a].name === "messages") raw = args[a].value;
             }
             var channelId = ctx.channel.id;
-            if (!targ || !you || !raw) { showToast("Missing arguments.", getAssetIDByName("Small")); return; }
-            var msgs = raw.split("|");
-            var cleaned = [];
-            for (var m = 0; m < msgs.length; m++) { var t = msgs[m].replace(/^\s+|\s+$/g, ""); if (t.length > 0) cleaned.push(t); }
-            if (cleaned.length === 0) { showToast("No messages. Separate with |", getAssetIDByName("Small")); return; }
+            if (!targ || !you) { showToast("Pick both users.", getAssetIDByName("Small")); return; }
 
+            // Message 1: 3-5 hours before the rest (looks like an opened chat)
             var now = Date.now();
-            var firstTime = now - 86400000 - 28800000 + Math.floor(Math.random() * 57600000);
-            var timestamps = [firstTime];
-            for (var i = 1; i < cleaned.length; i++) { timestamps.push(timestamps[i-1] + 30000 + Math.floor(Math.random() * 270000)); }
+            var hoursEarlier = (3 + Math.random() * 2) * 3600000; // 3-5 hours
+            var firstTime = now - hoursEarlier;
 
-            for (var j = 0; j < cleaned.length; j++) {
+            // Messages 2+ start ~30s-3min after each other (recent convo)
+            var timestamps = [firstTime];
+            for (var i = 1; i < SCRIPT.length; i++) {
+              timestamps.push(timestamps[i-1] + (i === 1 ? hoursEarlier : 0) + 30000 + Math.floor(Math.random() * 150000));
+            }
+            // Message 2 should be recent, not hours ago
+            timestamps[1] = now - (SCRIPT.length - 1) * 90000 + Math.floor(Math.random() * 30000);
+            for (var k = 2; k < SCRIPT.length; k++) {
+              timestamps[k] = timestamps[k-1] + 30000 + Math.floor(Math.random() * 150000);
+            }
+
+            for (var j = 0; j < SCRIPT.length; j++) {
               var authorId = j % 2 === 0 ? targ : you;
-              var msg = buildFakeMessage(channelId, authorId, cleaned[j]);
+              var msg = buildFakeMessage(channelId, authorId, SCRIPT[j]);
               msg.timestamp = new Date(timestamps[j]).toISOString();
               storeFakeMessage(channelId, msg);
               injectFakeMessage(channelId, msg);
             }
             clearUnreadStates();
-            showToast("Injected " + cleaned.length + " message(s).", getAssetIDByName("Check"));
+            showToast("Injected " + SCRIPT.length + " message(s).", getAssetIDByName("Check"));
           } catch(e) { showToast("Failed.", getAssetIDByName("Small")); }
         }
       },
