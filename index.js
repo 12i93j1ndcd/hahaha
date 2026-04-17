@@ -8,7 +8,17 @@
 
     const Dispatcher = findByProps("_currentDispatchActionType", "_subscriptions")
       || findByProps("dispatch", "subscribe", "unsubscribe")
-      || vendetta.metro.common.FluxDispatcher;
+      || vendetta.metro.common.FluxDispatcher
+      || findByProps("_dispatch", "_subscriptions")
+      || findByProps("_actionHandlers", "dispatch")
+      || findByProps("_interceptors", "dispatch");
+
+    // Also try to find it via Flux store
+    var FluxMod = findByProps("Store", "connectStores");
+    var DispatcherFromFlux = FluxMod && FluxMod.Dispatcher ? new FluxMod.Dispatcher() : null;
+    
+    // Use whichever one we found
+    var RealDispatcher = Dispatcher || DispatcherFromFlux;
     const MessageStore = findByProps("getMessage", "getMessages");
     const UserStore = findByProps("getUser", "getUsers");
     const ChannelStore = findByProps("getChannel", "getDMUserIds", "getLastSelectedChannelId");
@@ -46,8 +56,29 @@
     log("onLoad started");
     log("Dispatcher: " + (Dispatcher ? "found" : "NULL"));
     log("Dispatcher.dispatch: " + (Dispatcher && typeof Dispatcher.dispatch === "function" ? "found" : "NULL"));
-    log("Dispatcher type: " + typeof Dispatcher);
-    if (Dispatcher) { log("Dispatcher keys: " + Object.keys(Dispatcher).slice(0, 10).join(",")); }
+    log("DispatcherFromFlux: " + (DispatcherFromFlux ? "found" : "NULL"));
+    log("RealDispatcher: " + (RealDispatcher ? "found" : "NULL"));
+    log("vendetta.metro.common keys: " + Object.keys(vendetta.metro.common || {}).join(","));
+    log("FluxDispatcher direct: " + (vendetta.metro.common.FluxDispatcher ? "found" : "NULL"));
+    
+    // Try to find dispatcher by searching all modules
+    var altDispatcher = null;
+    try {
+      var findAll = vendetta.metro.findByPropsAll || null;
+      if (findAll) {
+        var candidates = findAll("dispatch", "subscribe");
+        log("findByPropsAll dispatch,subscribe found " + candidates.length + " results");
+        if (candidates.length > 0) {
+          altDispatcher = candidates[0];
+          log("altDispatcher keys: " + Object.keys(altDispatcher).slice(0, 15).join(","));
+        }
+      }
+    } catch(e) { log("findAll error: " + e.message); }
+    
+    var FinalDispatcher = RealDispatcher || altDispatcher;
+    log("FinalDispatcher: " + (FinalDispatcher ? "found" : "NULL"));
+    if (FinalDispatcher) { log("FinalDispatcher.dispatch: " + typeof FinalDispatcher.dispatch); }
+    
     log("UserStore: " + (UserStore ? "found" : "NULL"));
     log("MessageStore: " + (MessageStore ? "found" : "NULL"));
 
@@ -73,7 +104,10 @@
 
     function injectFakeMessage(channelId, message, _source) {
       try {
-        if (!Dispatcher || typeof Dispatcher.dispatch !== "function") return;
+        if (!FinalDispatcher || typeof FinalDispatcher.dispatch !== "function") {
+          log("injectFakeMessage SKIP: no dispatcher");
+          return;
+        }
 
         var prepared = {
           id: message.id,
@@ -96,7 +130,7 @@
           embeds: []
         };
 
-        Dispatcher.dispatch({
+        FinalDispatcher.dispatch({
           type: "MESSAGE_CREATE",
           channelId: channelId,
           message: prepared,
@@ -111,7 +145,7 @@
           silent: true
         });
 
-        Dispatcher.dispatch({
+        FinalDispatcher.dispatch({
           type: "MESSAGE_ACK",
           channelId: channelId,
           messageId: message.id,
@@ -327,10 +361,10 @@
     ];
 
     for (var e = 0; e < events.length; e++) {
-      if (Dispatcher && Dispatcher.subscribe) {
-        Dispatcher.subscribe(events[e], handleLoad);
+      if (FinalDispatcher && FinalDispatcher.subscribe) {
+        FinalDispatcher.subscribe(events[e], handleLoad);
         this._unsubs.push((function(ev) {
-          return function() { Dispatcher.unsubscribe(ev, handleLoad); };
+          return function() { FinalDispatcher.unsubscribe(ev, handleLoad); };
         })(events[e]));
       }
     }
