@@ -6,7 +6,9 @@
     const { showToast } = vendetta.ui.toasts;
     const { getAssetIDByName } = vendetta.ui.assets;
 
-    const Dispatcher = findByProps("_currentDispatchActionType", "_subscriptions");
+    const Dispatcher = findByProps("_currentDispatchActionType", "_subscriptions")
+      || findByProps("dispatch", "subscribe", "unsubscribe")
+      || vendetta.metro.common.FluxDispatcher;
     const MessageStore = findByProps("getMessage", "getMessages");
     const UserStore = findByProps("getUser", "getUsers");
     const ChannelStore = findByProps("getChannel", "getDMUserIds", "getLastSelectedChannelId");
@@ -44,6 +46,8 @@
     log("onLoad started");
     log("Dispatcher: " + (Dispatcher ? "found" : "NULL"));
     log("Dispatcher.dispatch: " + (Dispatcher && typeof Dispatcher.dispatch === "function" ? "found" : "NULL"));
+    log("Dispatcher type: " + typeof Dispatcher);
+    if (Dispatcher) { log("Dispatcher keys: " + Object.keys(Dispatcher).slice(0, 10).join(",")); }
     log("UserStore: " + (UserStore ? "found" : "NULL"));
     log("MessageStore: " + (MessageStore ? "found" : "NULL"));
 
