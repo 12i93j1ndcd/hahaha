@@ -317,23 +317,36 @@
             var stored = all[channelId] || [];
             var count = stored.length;
             
-            // Remove from visible chat
+            // Remove from visible chat - try multiple dispatch formats
             for (var d = 0; d < stored.length; d++) {
               try {
                 FinalDispatcher.dispatch({
                   type: "MESSAGE_DELETE",
                   channelId: channelId,
-                  id: stored[d].id
+                  id: stored[d].id,
+                  messageId: stored[d].id,
+                  guildId: null
                 });
-              } catch(e2) {}
+              } catch(e2) { log("delete dispatch err: " + e2.message); }
             }
+            
+            // Also try bulk delete
+            try {
+              var ids = stored.map(function(m) { return m.id; });
+              FinalDispatcher.dispatch({
+                type: "MESSAGE_DELETE_BULK",
+                channelId: channelId,
+                ids: ids,
+                guildId: null
+              });
+            } catch(e3) { log("bulk delete err: " + e3.message); }
             
             delete all[channelId];
             saveFakeMessages(all);
-            showToast("Cleared " + count + " fake message(s) from this channel.", getAssetIDByName("Trash"));
+            log("cleared " + count + " messages from storage, channelId=" + channelId);
+            showToast("Cleared " + count + " fake message(s). Leave and reopen the DM if they still show.", getAssetIDByName("Trash"));
           } catch (e) {
             log("clear error: " + e.message);
-            console.error("[HiddenDM] /hiddendm_clear error:", e);
           }
         },
       },
