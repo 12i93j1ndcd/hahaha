@@ -81,8 +81,8 @@
         description: "Send the fake scam DM convo",
         displayDescription: "Send the fake scam DM convo",
         options: [
-          { name: "targ", displayName: "targ", description: "The scammer (sends first)", displayDescription: "The scammer", type: 6, required: true },
-          { name: "you", displayName: "you", description: "You", displayDescription: "You", type: 6, required: true }
+          { name: "targ", displayName: "targ", description: "The other person's user ID", displayDescription: "The other person's user ID", type: 3, required: true },
+          { name: "you", displayName: "you", description: "Your user ID", displayDescription: "Your user ID", type: 3, required: true }
         ],
         execute: function(args, ctx) {
           try {
