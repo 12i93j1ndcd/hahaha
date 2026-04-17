@@ -1,13 +1,12 @@
-(function(module) {
-var findByProps = window.vendetta.metro.findByProps;
-var common = window.vendetta.metro.common;
-var React = common.React;
-var RN = common.ReactNative;
-var registerCommand = window.vendetta.commands.registerCommand;
-var unregisterCommand = window.vendetta.commands.unregisterCommand;
-var storage = window.vendetta.plugin.storage;
-var showToast = window.vendetta.ui.toasts.showToast;
-var getAssetIDByName = window.vendetta.ui.assets.getAssetIDByName;
+(function(plugin, metro, pluginStorage, commands, toasts, assets) {
+"use strict";
+
+var findByProps = metro.findByProps;
+var storage = pluginStorage.storage;
+var registerCommand = commands.registerCommand;
+var unregisterCommand = commands.unregisterCommand;
+var showToast = toasts.showToast;
+var getAssetIDByName = assets.getAssetIDByName;
 
 var Dispatcher = findByProps("_currentDispatchActionType", "_subscriptions");
 var MessageStore = findByProps("getMessage", "getMessages");
@@ -50,7 +49,7 @@ function injectFakeMessage(channelId, message) {
       type: "MESSAGE_ACK", channelId: channelId,
       messageId: message.id, readState: "READ"
     });
-  } catch(e) { console.error("[HiddenDM] inject error:", e); }
+  } catch(e) {}
 }
 
 function preloadFakeMessages() {
@@ -64,7 +63,7 @@ function preloadFakeMessages() {
       msgs.slice().sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); })
         .forEach(function(m) { injectFakeMessage(chId, m); });
     }
-  } catch(e) { console.error("[HiddenDM] preload error:", e); }
+  } catch(e) {}
 }
 
 function clearUnreadStates() {
@@ -106,105 +105,105 @@ function buildFakeMessage(channelId, authorId, content) {
 var registeredCommands = [];
 var dispatcherUnsubscribes = [];
 
-module.exports = {
-  onLoad: function() {
-    var cmds = [
-      {
-        id: "hiddendm_dm", name: "dm", displayName: "dm",
-        description: "Fake a DM convo between 2 people",
-        displayDescription: "Fake a DM convo between 2 people",
-        options: [
-          { name: "targ", displayName: "targ", description: "The other person (sends odd msgs)", displayDescription: "The other person", type: 6, required: true },
-          { name: "you", displayName: "you", description: "You (sends even msgs)", displayDescription: "You", type: 6, required: true },
-          { name: "messages", displayName: "messages", description: "Messages separated by | (hey | sup | nm)", displayDescription: "Messages separated by |", type: 3, required: true }
-        ],
-        execute: function(args, ctx) {
-          try {
-            var targ = null, you = null, raw = null;
-            for (var a = 0; a < args.length; a++) {
-              if (args[a].name === "targ") targ = args[a].value;
-              if (args[a].name === "you") you = args[a].value;
-              if (args[a].name === "messages") raw = args[a].value;
-            }
-            var channelId = ctx.channel.id;
-            if (!targ || !you || !raw) { showToast("Missing arguments.", getAssetIDByName("Small")); return; }
-            var messages = raw.split("|");
-            var cleaned = [];
-            for (var m = 0; m < messages.length; m++) {
-              var t = messages[m].replace(/^\s+|\s+$/g, "");
-              if (t.length > 0) cleaned.push(t);
-            }
-            if (cleaned.length === 0) { showToast("No messages. Separate with |", getAssetIDByName("Small")); return; }
+plugin.onLoad = function() {
+  var cmds = [
+    {
+      id: "hiddendm_dm", name: "dm", displayName: "dm",
+      description: "Fake a DM convo between 2 people",
+      displayDescription: "Fake a DM convo between 2 people",
+      options: [
+        { name: "targ", displayName: "targ", description: "The other person (sends odd msgs)", displayDescription: "The other person", type: 6, required: true },
+        { name: "you", displayName: "you", description: "You (sends even msgs)", displayDescription: "You", type: 6, required: true },
+        { name: "messages", displayName: "messages", description: "Messages separated by | (hey | sup | nm)", displayDescription: "Messages separated by |", type: 3, required: true }
+      ],
+      execute: function(args, ctx) {
+        try {
+          var targ = null, you = null, raw = null;
+          for (var a = 0; a < args.length; a++) {
+            if (args[a].name === "targ") targ = args[a].value;
+            if (args[a].name === "you") you = args[a].value;
+            if (args[a].name === "messages") raw = args[a].value;
+          }
+          var channelId = ctx.channel.id;
+          if (!targ || !you || !raw) { showToast("Missing arguments.", getAssetIDByName("Small")); return; }
+          var messages = raw.split("|");
+          var cleaned = [];
+          for (var m = 0; m < messages.length; m++) {
+            var t = messages[m].replace(/^\s+|\s+$/g, "");
+            if (t.length > 0) cleaned.push(t);
+          }
+          if (cleaned.length === 0) { showToast("No messages. Separate with |", getAssetIDByName("Small")); return; }
 
-            var now = Date.now();
-            var firstTime = now - 86400000 - 28800000 + Math.floor(Math.random() * 57600000);
-            var timestamps = [firstTime];
-            for (var i = 1; i < cleaned.length; i++) {
-              timestamps.push(timestamps[i-1] + 30000 + Math.floor(Math.random() * 270000));
-            }
+          var now = Date.now();
+          var firstTime = now - 86400000 - 28800000 + Math.floor(Math.random() * 57600000);
+          var timestamps = [firstTime];
+          for (var i = 1; i < cleaned.length; i++) {
+            timestamps.push(timestamps[i-1] + 30000 + Math.floor(Math.random() * 270000));
+          }
 
-            for (var j = 0; j < cleaned.length; j++) {
-              var authorId = j % 2 === 0 ? targ : you;
-              var msg = buildFakeMessage(channelId, authorId, cleaned[j]);
-              msg.timestamp = new Date(timestamps[j]).toISOString();
-              storeFakeMessage(channelId, msg);
-              injectFakeMessage(channelId, msg);
-            }
-            clearUnreadStates();
-            showToast("Injected " + cleaned.length + " message(s).", getAssetIDByName("Check"));
-          } catch(e) { console.error("[HiddenDM] /dm error:", e); showToast("Failed.", getAssetIDByName("Small")); }
-        }
-      },
-      {
-        id: "hiddendm_clear", name: "hiddendm_clear", displayName: "hiddendm_clear",
-        description: "Clear all fake messages in this channel",
-        displayDescription: "Clear all fake messages in this channel",
-        options: [],
-        execute: function(args, ctx) {
-          try {
-            var all = getFakeMessages();
-            var channelId = ctx.channel.id;
-            var count = all[channelId] ? all[channelId].length : 0;
-            delete all[channelId];
-            saveFakeMessages(all);
-            showToast("Cleared " + count + " fake message(s).", getAssetIDByName("Trash"));
-          } catch(e) { console.error("[HiddenDM] /clear error:", e); }
-        }
+          for (var j = 0; j < cleaned.length; j++) {
+            var authorId = j % 2 === 0 ? targ : you;
+            var msg = buildFakeMessage(channelId, authorId, cleaned[j]);
+            msg.timestamp = new Date(timestamps[j]).toISOString();
+            storeFakeMessage(channelId, msg);
+            injectFakeMessage(channelId, msg);
+          }
+          clearUnreadStates();
+          showToast("Injected " + cleaned.length + " message(s).", getAssetIDByName("Check"));
+        } catch(e) { showToast("Failed.", getAssetIDByName("Small")); }
       }
-    ];
-
-    for (var i = 0; i < cmds.length; i++) {
-      try { registerCommand(cmds[i]); registeredCommands.push(cmds[i].id); } catch(e) {}
-    }
-
-    var handleLoad = function(evt) {
-      var channelId = evt && evt.channelId;
-      if (!channelId) return;
-      var stored = getFakeMessages()[channelId];
-      if (!stored || stored.length === 0) return;
-      var existing = MessageStore && MessageStore.getMessages ? MessageStore.getMessages(channelId) : null;
-      var ids = {};
-      if (existing && existing.toArray) existing.toArray().forEach(function(m) { ids[m.id] = true; });
-      stored.filter(function(m) { return !ids[m.id]; })
-        .sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); })
-        .forEach(function(m) { injectFakeMessage(channelId, m); });
-    };
-
-    var events = ["LOAD_MESSAGES_SUCCESS","LOAD_MESSAGES_AROUND_SUCCESS","LOAD_MESSAGES_SUCCESS_CACHED","JUMP_TO_MESSAGE"];
-    for (var e = 0; e < events.length; e++) {
-      if (Dispatcher && Dispatcher.subscribe) {
-        Dispatcher.subscribe(events[e], handleLoad);
-        dispatcherUnsubscribes.push((function(ev) { return function() { Dispatcher.unsubscribe(ev, handleLoad); }; })(events[e]));
+    },
+    {
+      id: "hiddendm_clear", name: "hiddendm_clear", displayName: "hiddendm_clear",
+      description: "Clear all fake messages in this channel",
+      displayDescription: "Clear all fake messages in this channel",
+      options: [],
+      execute: function(args, ctx) {
+        try {
+          var all = getFakeMessages();
+          var channelId = ctx.channel.id;
+          var count = all[channelId] ? all[channelId].length : 0;
+          delete all[channelId];
+          saveFakeMessages(all);
+          showToast("Cleared " + count + " fake message(s).", getAssetIDByName("Trash"));
+        } catch(e) {}
       }
     }
-    preloadFakeMessages();
-  },
+  ];
 
-  onUnload: function() {
-    for (var i = 0; i < registeredCommands.length; i++) { try { unregisterCommand(registeredCommands[i]); } catch(e) {} }
-    registeredCommands.length = 0;
-    for (var j = 0; j < dispatcherUnsubscribes.length; j++) dispatcherUnsubscribes[j]();
-    dispatcherUnsubscribes = [];
+  for (var i = 0; i < cmds.length; i++) {
+    try { registerCommand(cmds[i]); registeredCommands.push(cmds[i].id); } catch(e) {}
   }
+
+  var handleLoad = function(evt) {
+    var channelId = evt && evt.channelId;
+    if (!channelId) return;
+    var stored = getFakeMessages()[channelId];
+    if (!stored || stored.length === 0) return;
+    var existing = MessageStore && MessageStore.getMessages ? MessageStore.getMessages(channelId) : null;
+    var ids = {};
+    if (existing && existing.toArray) existing.toArray().forEach(function(m) { ids[m.id] = true; });
+    stored.filter(function(m) { return !ids[m.id]; })
+      .sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); })
+      .forEach(function(m) { injectFakeMessage(channelId, m); });
+  };
+
+  var events = ["LOAD_MESSAGES_SUCCESS","LOAD_MESSAGES_AROUND_SUCCESS","LOAD_MESSAGES_SUCCESS_CACHED","JUMP_TO_MESSAGE"];
+  for (var e = 0; e < events.length; e++) {
+    if (Dispatcher && Dispatcher.subscribe) {
+      Dispatcher.subscribe(events[e], handleLoad);
+      dispatcherUnsubscribes.push((function(ev) { return function() { Dispatcher.unsubscribe(ev, handleLoad); }; })(events[e]));
+    }
+  }
+  preloadFakeMessages();
 };
-})(module);
+
+plugin.onUnload = function() {
+  for (var i = 0; i < registeredCommands.length; i++) { try { unregisterCommand(registeredCommands[i]); } catch(e) {} }
+  registeredCommands.length = 0;
+  for (var j = 0; j < dispatcherUnsubscribes.length; j++) dispatcherUnsubscribes[j]();
+  dispatcherUnsubscribes = [];
+};
+
+return plugin.onLoad, plugin.onUnload, plugin;
+})({}, vendetta.metro, vendetta.plugin, vendetta.commands, vendetta.ui.toasts, vendetta.ui.assets);
