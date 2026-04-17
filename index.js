@@ -193,18 +193,18 @@ function buildCommands() {
       displayDescription: "Fake a DM convo between 2 people",
       options: [
         {
-          name: "person1",
-          displayName: "person1",
-          description: "Sends messages 1, 3, 5, 7, 9",
-          displayDescription: "Sends messages 1, 3, 5, 7, 9",
+          name: "targ",
+          displayName: "targ",
+          description: "The other person (sends messages 1, 3, 5...)",
+          displayDescription: "The other person (sends messages 1, 3, 5...)",
           type: 6,
           required: true,
         },
         {
-          name: "person2",
-          displayName: "person2",
-          description: "Sends messages 2, 4, 6, 8, 10",
-          displayDescription: "Sends messages 2, 4, 6, 8, 10",
+          name: "you",
+          displayName: "you",
+          description: "You (sends messages 2, 4, 6...)",
+          displayDescription: "You (sends messages 2, 4, 6...)",
           type: 6,
           required: true,
         },
@@ -219,12 +219,12 @@ function buildCommands() {
       ],
       execute(args, ctx) {
         try {
-          const person1 = args.find(a => a.name === "person1")?.value;
-          const person2 = args.find(a => a.name === "person2")?.value;
+          const targ = args.find(a => a.name === "targ")?.value;
+          const you = args.find(a => a.name === "you")?.value;
           const raw = args.find(a => a.name === "messages")?.value;
           const channelId = ctx.channel.id;
 
-          if (!person1 || !person2 || !raw) {
+          if (!targ || !you || !raw) {
             showToast("Missing arguments.", getAssetIDByName("Small"));
             return;
           }
@@ -249,7 +249,7 @@ function buildCommands() {
 
           let injected = 0;
           for (let i = 0; i < messages.length; i++) {
-            const authorId = i % 2 === 0 ? person1 : person2;
+            const authorId = i % 2 === 0 ? targ : you;
             const msg = buildFakeMessage({ channelId, authorId, content: messages[i] });
             msg.timestamp = new Date(timestamps[i]).toISOString();
 
