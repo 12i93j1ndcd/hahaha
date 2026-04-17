@@ -1,0 +1,13 @@
+{
+  "id": "HiddenDM",
+  "name": "HiddenDM",
+  "version": "1.0.0",
+  "description": "Create fake messages from any user in DMs",
+  "authors": [
+    {
+      "name": "dylan",
+      "id": "1278523345498800130"
+    }
+  ],
+  "main": "index.js"
+}
