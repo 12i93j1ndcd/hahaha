@@ -1,34 +1,30 @@
-// HiddenDM - Rewritten for Kettu
-// Original by dylan, ported to Kettu
+(function(module) {
+var findByProps = window.vendetta.metro.findByProps;
+var common = window.vendetta.metro.common;
+var React = common.React;
+var RN = common.ReactNative;
+var registerCommand = window.vendetta.commands.registerCommand;
+var unregisterCommand = window.vendetta.commands.unregisterCommand;
+var storage = window.vendetta.plugin.storage;
+var showToast = window.vendetta.ui.toasts.showToast;
+var getAssetIDByName = window.vendetta.ui.assets.getAssetIDByName;
 
-const { findByProps } = vendetta.metro;
-const { React, ReactNative: RN } = vendetta.metro.common;
-const { registerCommand, unregisterCommand } = vendetta.commands;
-const { storage } = vendetta.plugin;
-const { showToast } = vendetta.ui.toasts;
-const { getAssetIDByName } = vendetta.ui.assets;
-const { Forms } = vendetta.ui.components;
-
-const { ScrollView, View, Text, TouchableOpacity, StyleSheet } = RN;
-const { FormSection, FormRow } = Forms;
-
-const Dispatcher   = findByProps("_currentDispatchActionType", "_subscriptions");
-const MessageStore = findByProps("getMessage", "getMessages");
-const UserStore    = findByProps("getUser", "getUsers");
-const ReadStateStore = findByProps("getAllReadStates");
-const BulkAck      = findByProps("bulkAck");
-const Linking      = findByProps("openURL");
+var Dispatcher = findByProps("_currentDispatchActionType", "_subscriptions");
+var MessageStore = findByProps("getMessage", "getMessages");
+var UserStore = findByProps("getUser", "getUsers");
+var ReadStateStore = findByProps("getAllReadStates");
+var BulkAck = findByProps("bulkAck");
 
 function getFakeMessages() {
   try {
-    const raw = storage.fakeMessages;
+    var raw = storage.fakeMessages;
     if (!raw) return {};
     return typeof raw === "string" ? JSON.parse(raw) : raw;
-  } catch { return {}; }
+  } catch(e) { return {}; }
 }
 
 function saveFakeMessages(data) {
-  try { storage.fakeMessages = JSON.stringify(data); } catch {}
+  try { storage.fakeMessages = JSON.stringify(data); } catch(e) {}
 }
 
 function generateSnowflake() {
@@ -42,33 +38,33 @@ function injectFakeMessage(channelId, message) {
       state: "SENT", flags: message.flags || 0, blocked: false,
       pinned: false, tts: false, mention_everyone: false,
       mentions: [], mention_roles: [], reactions: [],
-      attachments: [], embeds: [],
+      attachments: [], embeds: []
     });
     Dispatcher.dispatch({
       type: "MESSAGE_CREATE", channelId: channelId, message: prepared,
       optimistic: false, isFakeHiddenDM: true, guildId: message.guild_id,
       isPushNotification: false, suppressNotifications: true,
-      suppressEmbeds: false, isRead: true, isAcknowledged: true, silent: true,
+      suppressEmbeds: false, isRead: true, isAcknowledged: true, silent: true
     });
     Dispatcher.dispatch({
       type: "MESSAGE_ACK", channelId: channelId,
-      messageId: message.id, readState: "READ",
+      messageId: message.id, readState: "READ"
     });
-  } catch (e) { console.error("[HiddenDM] injectFakeMessage error:", e); }
+  } catch(e) { console.error("[HiddenDM] inject error:", e); }
 }
 
 function preloadFakeMessages() {
   try {
     var all = getFakeMessages();
-    var channelIds = Object.keys(all);
-    for (var c = 0; c < channelIds.length; c++) {
-      var channelId = channelIds[c];
-      var msgs = all[channelId];
+    var keys = Object.keys(all);
+    for (var c = 0; c < keys.length; c++) {
+      var chId = keys[c];
+      var msgs = all[chId];
       if (!Array.isArray(msgs)) continue;
-      msgs.slice().sort(function(a, b) { return new Date(a.timestamp) - new Date(b.timestamp); })
-        .forEach(function(msg) { injectFakeMessage(channelId, msg); });
+      msgs.slice().sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); })
+        .forEach(function(m) { injectFakeMessage(chId, m); });
     }
-  } catch (e) { console.error("[HiddenDM] preloadFakeMessages error:", e); }
+  } catch(e) { console.error("[HiddenDM] preload error:", e); }
 }
 
 function clearUnreadStates() {
@@ -81,147 +77,134 @@ function clearUnreadStates() {
     BulkAck.bulkAck(unread.map(function(s) {
       return { channelId: s.channelId, messageId: s._lastMessageId || s.lastMessageId };
     }));
-  } catch {}
+  } catch(e) {}
 }
 
-function storeFakeMessage(channelId, messageObj) {
+function storeFakeMessage(channelId, msgObj) {
   var all = getFakeMessages();
   if (!all[channelId]) all[channelId] = [];
-  all[channelId].push(messageObj);
+  all[channelId].push(msgObj);
   saveFakeMessages(all);
 }
 
-function buildFakeMessage(opts) {
-  var channelId = opts.channelId, authorId = opts.authorId, content = opts.content;
+function buildFakeMessage(channelId, authorId, content) {
   var author = UserStore && UserStore.getUser ? UserStore.getUser(authorId) : null;
   var id = generateSnowflake();
-  var msg = {
+  return {
     id: id, channel_id: channelId, content: content,
     timestamp: new Date().toISOString(), edited_timestamp: null,
     tts: false, mention_everyone: false, mentions: [], mention_roles: [],
     attachments: [], embeds: [], reactions: [], pinned: false, type: 0, flags: 0,
     author: author ? {
-      id: author.id, username: author.username,
-      discriminator: author.discriminator, avatar: author.avatar,
-      bot: author.bot || false, global_name: author.globalName || author.username,
-    } : { id: authorId, username: "Unknown User", discriminator: "0000", avatar: null, bot: false },
+      id: author.id, username: author.username, discriminator: author.discriminator,
+      avatar: author.avatar, bot: author.bot || false,
+      global_name: author.globalName || author.username
+    } : { id: authorId, username: "Unknown User", discriminator: "0000", avatar: null, bot: false }
   };
-  return msg;
 }
 
 var registeredCommands = [];
-
-function buildCommands() {
-  return [
-    {
-      id: "hiddendm_dm", name: "dm", displayName: "dm",
-      description: "Fake a DM convo between 2 people",
-      displayDescription: "Fake a DM convo between 2 people",
-      options: [
-        { name: "targ", displayName: "targ", description: "The other person (sends odd messages)", displayDescription: "The other person (sends odd messages)", type: 6, required: true },
-        { name: "you", displayName: "you", description: "You (sends even messages)", displayDescription: "You (sends even messages)", type: 6, required: true },
-        { name: "messages", displayName: "messages", description: "All messages separated by | (e.g. hey | whats up | nm)", displayDescription: "All messages separated by | (e.g. hey | whats up | nm)", type: 3, required: true },
-      ],
-      execute: function(args, ctx) {
-        try {
-          var targ = args.find(function(a) { return a.name === "targ"; });
-          var you = args.find(function(a) { return a.name === "you"; });
-          var raw = args.find(function(a) { return a.name === "messages"; });
-          targ = targ ? targ.value : null;
-          you = you ? you.value : null;
-          raw = raw ? raw.value : null;
-          var channelId = ctx.channel.id;
-
-          if (!targ || !you || !raw) { showToast("Missing arguments.", getAssetIDByName("Small")); return; }
-
-          var messages = raw.split("|").map(function(m) { return m.trim(); }).filter(function(m) { return m.length > 0; });
-          if (messages.length === 0) { showToast("No messages found. Separate with |", getAssetIDByName("Small")); return; }
-
-          var now = Date.now();
-          var yesterdayStart = now - 86400000;
-          var randomOffset = Math.floor(Math.random() * 57600000);
-          var firstMsgTime = yesterdayStart - 28800000 + randomOffset;
-
-          var timestamps = [firstMsgTime];
-          for (var i = 1; i < messages.length; i++) {
-            var gap = 30000 + Math.floor(Math.random() * 270000);
-            timestamps.push(timestamps[i - 1] + gap);
-          }
-
-          var injected = 0;
-          for (var j = 0; j < messages.length; j++) {
-            var authorId = j % 2 === 0 ? targ : you;
-            var msg = buildFakeMessage({ channelId: channelId, authorId: authorId, content: messages[j] });
-            msg.timestamp = new Date(timestamps[j]).toISOString();
-            storeFakeMessage(channelId, msg);
-            injectFakeMessage(channelId, msg);
-            injected++;
-          }
-          clearUnreadStates();
-          showToast("Injected " + injected + " message(s).", getAssetIDByName("Check"));
-        } catch (e) { console.error("[HiddenDM] /dm error:", e); showToast("Failed.", getAssetIDByName("Small")); }
-      },
-    },
-    {
-      id: "hiddendm_clear", name: "hiddendm_clear", displayName: "hiddendm_clear",
-      description: "Clear all fake messages in this channel",
-      displayDescription: "Clear all fake messages in this channel",
-      options: [],
-      execute: function(_args, ctx) {
-        try {
-          var all = getFakeMessages();
-          var channelId = ctx.channel.id;
-          var count = all[channelId] ? all[channelId].length : 0;
-          delete all[channelId];
-          saveFakeMessages(all);
-          showToast("Cleared " + count + " fake message(s).", getAssetIDByName("Trash"));
-        } catch (e) { console.error("[HiddenDM] /clear error:", e); }
-      },
-    },
-  ];
-}
-
 var dispatcherUnsubscribes = [];
 
-module.exports.onLoad = function() {
-  var cmds = buildCommands();
-  for (var i = 0; i < cmds.length; i++) {
-    try {
-      registerCommand(cmds[i]);
-      registeredCommands.push(cmds[i].id);
-    } catch (e) { console.error("[HiddenDM] Failed to register command:", e); }
-  }
+module.exports = {
+  onLoad: function() {
+    var cmds = [
+      {
+        id: "hiddendm_dm", name: "dm", displayName: "dm",
+        description: "Fake a DM convo between 2 people",
+        displayDescription: "Fake a DM convo between 2 people",
+        options: [
+          { name: "targ", displayName: "targ", description: "The other person (sends odd msgs)", displayDescription: "The other person", type: 6, required: true },
+          { name: "you", displayName: "you", description: "You (sends even msgs)", displayDescription: "You", type: 6, required: true },
+          { name: "messages", displayName: "messages", description: "Messages separated by | (hey | sup | nm)", displayDescription: "Messages separated by |", type: 3, required: true }
+        ],
+        execute: function(args, ctx) {
+          try {
+            var targ = null, you = null, raw = null;
+            for (var a = 0; a < args.length; a++) {
+              if (args[a].name === "targ") targ = args[a].value;
+              if (args[a].name === "you") you = args[a].value;
+              if (args[a].name === "messages") raw = args[a].value;
+            }
+            var channelId = ctx.channel.id;
+            if (!targ || !you || !raw) { showToast("Missing arguments.", getAssetIDByName("Small")); return; }
+            var messages = raw.split("|");
+            var cleaned = [];
+            for (var m = 0; m < messages.length; m++) {
+              var t = messages[m].replace(/^\s+|\s+$/g, "");
+              if (t.length > 0) cleaned.push(t);
+            }
+            if (cleaned.length === 0) { showToast("No messages. Separate with |", getAssetIDByName("Small")); return; }
 
-  var handleLoad = function(evt) {
-    var channelId = evt && evt.channelId;
-    if (!channelId) return;
-    var stored = getFakeMessages()[channelId];
-    if (!stored || stored.length === 0) return;
-    var existing = MessageStore && MessageStore.getMessages ? MessageStore.getMessages(channelId) : null;
-    var existingIds = {};
-    if (existing && existing.toArray) {
-      existing.toArray().forEach(function(m) { existingIds[m.id] = true; });
+            var now = Date.now();
+            var firstTime = now - 86400000 - 28800000 + Math.floor(Math.random() * 57600000);
+            var timestamps = [firstTime];
+            for (var i = 1; i < cleaned.length; i++) {
+              timestamps.push(timestamps[i-1] + 30000 + Math.floor(Math.random() * 270000));
+            }
+
+            for (var j = 0; j < cleaned.length; j++) {
+              var authorId = j % 2 === 0 ? targ : you;
+              var msg = buildFakeMessage(channelId, authorId, cleaned[j]);
+              msg.timestamp = new Date(timestamps[j]).toISOString();
+              storeFakeMessage(channelId, msg);
+              injectFakeMessage(channelId, msg);
+            }
+            clearUnreadStates();
+            showToast("Injected " + cleaned.length + " message(s).", getAssetIDByName("Check"));
+          } catch(e) { console.error("[HiddenDM] /dm error:", e); showToast("Failed.", getAssetIDByName("Small")); }
+        }
+      },
+      {
+        id: "hiddendm_clear", name: "hiddendm_clear", displayName: "hiddendm_clear",
+        description: "Clear all fake messages in this channel",
+        displayDescription: "Clear all fake messages in this channel",
+        options: [],
+        execute: function(args, ctx) {
+          try {
+            var all = getFakeMessages();
+            var channelId = ctx.channel.id;
+            var count = all[channelId] ? all[channelId].length : 0;
+            delete all[channelId];
+            saveFakeMessages(all);
+            showToast("Cleared " + count + " fake message(s).", getAssetIDByName("Trash"));
+          } catch(e) { console.error("[HiddenDM] /clear error:", e); }
+        }
+      }
+    ];
+
+    for (var i = 0; i < cmds.length; i++) {
+      try { registerCommand(cmds[i]); registeredCommands.push(cmds[i].id); } catch(e) {}
     }
-    stored.filter(function(m) { return !existingIds[m.id]; })
-      .sort(function(a, b) { return new Date(a.timestamp) - new Date(b.timestamp); })
-      .forEach(function(m) { injectFakeMessage(channelId, m); });
-  };
 
-  var events = ["LOAD_MESSAGES_SUCCESS", "LOAD_MESSAGES_AROUND_SUCCESS", "LOAD_MESSAGES_SUCCESS_CACHED", "JUMP_TO_MESSAGE"];
-  for (var e = 0; e < events.length; e++) {
-    if (Dispatcher && Dispatcher.subscribe) {
-      Dispatcher.subscribe(events[e], handleLoad);
-      dispatcherUnsubscribes.push((function(ev) { return function() { Dispatcher.unsubscribe(ev, handleLoad); }; })(events[e]));
+    var handleLoad = function(evt) {
+      var channelId = evt && evt.channelId;
+      if (!channelId) return;
+      var stored = getFakeMessages()[channelId];
+      if (!stored || stored.length === 0) return;
+      var existing = MessageStore && MessageStore.getMessages ? MessageStore.getMessages(channelId) : null;
+      var ids = {};
+      if (existing && existing.toArray) existing.toArray().forEach(function(m) { ids[m.id] = true; });
+      stored.filter(function(m) { return !ids[m.id]; })
+        .sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); })
+        .forEach(function(m) { injectFakeMessage(channelId, m); });
+    };
+
+    var events = ["LOAD_MESSAGES_SUCCESS","LOAD_MESSAGES_AROUND_SUCCESS","LOAD_MESSAGES_SUCCESS_CACHED","JUMP_TO_MESSAGE"];
+    for (var e = 0; e < events.length; e++) {
+      if (Dispatcher && Dispatcher.subscribe) {
+        Dispatcher.subscribe(events[e], handleLoad);
+        dispatcherUnsubscribes.push((function(ev) { return function() { Dispatcher.unsubscribe(ev, handleLoad); }; })(events[e]));
+      }
     }
-  }
-  preloadFakeMessages();
-};
+    preloadFakeMessages();
+  },
 
-module.exports.onUnload = function() {
-  for (var i = 0; i < registeredCommands.length; i++) {
-    try { unregisterCommand(registeredCommands[i]); } catch {}
+  onUnload: function() {
+    for (var i = 0; i < registeredCommands.length; i++) { try { unregisterCommand(registeredCommands[i]); } catch(e) {} }
+    registeredCommands.length = 0;
+    for (var j = 0; j < dispatcherUnsubscribes.length; j++) dispatcherUnsubscribes[j]();
+    dispatcherUnsubscribes = [];
   }
-  registeredCommands.length = 0;
-  for (var j = 0; j < dispatcherUnsubscribes.length; j++) dispatcherUnsubscribes[j]();
-  dispatcherUnsubscribes = [];
 };
+})(module);
