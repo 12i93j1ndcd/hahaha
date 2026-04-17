@@ -314,11 +314,25 @@
           try {
             var all = getFakeMessages();
             var channelId = ctx.channel.id;
-            var count = all[channelId] ? all[channelId].length : 0;
+            var stored = all[channelId] || [];
+            var count = stored.length;
+            
+            // Remove from visible chat
+            for (var d = 0; d < stored.length; d++) {
+              try {
+                FinalDispatcher.dispatch({
+                  type: "MESSAGE_DELETE",
+                  channelId: channelId,
+                  id: stored[d].id
+                });
+              } catch(e2) {}
+            }
+            
             delete all[channelId];
             saveFakeMessages(all);
             showToast("Cleared " + count + " fake message(s) from this channel.", getAssetIDByName("Trash"));
           } catch (e) {
+            log("clear error: " + e.message);
             console.error("[HiddenDM] /hiddendm_clear error:", e);
           }
         },
