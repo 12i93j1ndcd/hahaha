@@ -104,20 +104,51 @@
       };
     }
 
-    // Keep DM open — dispatch CHANNEL_CREATE after a delay so Discord is ready
-    setTimeout(function() {
+    // Keep DM open — block channel removal and periodically re-add
+    this._dmInterval = null;
+    this._dmUnsub = null;
+    
+    var persistDMs = function() {
       try {
         var allFake = getFakeMessages();
         var fakeChIds = Object.keys(allFake);
         for (var fc = 0; fc < fakeChIds.length; fc++) {
           var ch = ChannelStore ? ChannelStore.getChannel(fakeChIds[fc]) : null;
           if (ch) {
+            // Re-add to DM list
             FinalDispatcher.dispatch({ type: "CHANNEL_CREATE", channel: ch });
-            log("DM persist: dispatched CHANNEL_CREATE for " + fakeChIds[fc]);
           }
         }
-      } catch(e) { log("DM persist error: " + e.message); }
+      } catch(e) {}
+    };
+
+    // Run after Discord loads, then every 10 seconds
+    var self2 = this;
+    setTimeout(function() {
+      persistDMs();
+      self2._dmInterval = setInterval(persistDMs, 10000);
     }, 5000);
+
+    // Block CHANNEL_DELETE for our fake DM channels
+    if (FinalDispatcher && FinalDispatcher.subscribe) {
+      var blockDelete = function(evt) {
+        try {
+          var allFake = getFakeMessages();
+          var chId = evt && evt.channel && evt.channel.id;
+          if (chId && allFake[chId]) {
+            // Re-create the channel immediately
+            var ch = ChannelStore ? ChannelStore.getChannel(chId) : null;
+            if (ch) {
+              setTimeout(function() {
+                FinalDispatcher.dispatch({ type: "CHANNEL_CREATE", channel: ch });
+              }, 100);
+            }
+          }
+        } catch(e) {}
+      };
+      FinalDispatcher.subscribe("CHANNEL_DELETE", blockDelete);
+      this._dmUnsub = function() { FinalDispatcher.unsubscribe("CHANNEL_DELETE", blockDelete); };
+    }
 
     // Commands
     this._cmds = [];
@@ -207,5 +238,7 @@
     var unregisterCommand = vendetta.commands.unregisterCommand;
     if (this._cmds) { for (var i = 0; i < this._cmds.length; i++) { try { unregisterCommand(this._cmds[i]); } catch(e) {} } }
     if (this._unsubs) { for (var j = 0; j < this._unsubs.length; j++) { this._unsubs[j](); } }
+    if (this._dmInterval) { clearInterval(this._dmInterval); }
+    if (this._dmUnsub) { this._dmUnsub(); }
   }
 })
