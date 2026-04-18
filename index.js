@@ -139,7 +139,7 @@
             
             if (otherId && opener && opener.openPrivateChannel) {
               try {
-                opener.openPrivateChannel([otherId]);
+                opener.openPrivateChannel(otherId);
                 log("persist: openPrivateChannel called");
               } catch(e) { log("persist: openPrivateChannel err=" + e.message); }
             }
