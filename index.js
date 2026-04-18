@@ -27,7 +27,27 @@
       if (!otherId) return;
       var mod = findByProps("ensurePrivateChannel");
       log("persist: ensurePrivateChannel=" + (mod && mod.ensurePrivateChannel ? "found" : "NULL"));
-      if (mod && mod.ensurePrivateChannel) { mod.ensurePrivateChannel(otherId); log("persist: ensurePrivateChannel called"); return; }
+      if (mod && mod.ensurePrivateChannel) { mod.ensurePrivateChannel(otherId); log("persist: ensurePrivateChannel called");
+        // After channel opens, inject stored messages with a delay
+        setTimeout(function() { try {
+          var stored = getFakeMessages();
+          // Find the channel for this user
+          var chIds = Object.keys(stored);
+          for (var c = 0; c < chIds.length; c++) {
+            var msgs = stored[chIds[c]];
+            if (!msgs || msgs.length === 0) continue;
+            var hasOther = false;
+            for (var mm = 0; mm < msgs.length; mm++) { if (msgs[mm].author && msgs[mm].author.id === otherId) { hasOther = true; break; } }
+            if (hasOther) {
+              log("persist: injecting " + msgs.length + " msgs into " + chIds[c]);
+              msgs.sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); });
+              for (var mi = 0; mi < msgs.length; mi++) { inject(chIds[c], msgs[mi]); }
+              FinalDispatcher.dispatch({type:"MESSAGE_ACK",channelId:chIds[c],messageId:msgs[msgs.length-1].id,readState:"READ"});
+              break;
+            }
+          }
+        } catch(e) { log("persist inject err:" + e.message); } }, 3000);
+        return; }
       var mod2 = findByProps("openPrivateChannel");
       log("persist: openPrivateChannel=" + (mod2 && mod2.openPrivateChannel ? "found" : "NULL"));
       if (mod2 && mod2.openPrivateChannel) { mod2.openPrivateChannel(otherId); log("persist: openPrivateChannel called"); }
