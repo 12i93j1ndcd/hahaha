@@ -17,7 +17,7 @@
     function generateSnowflake() { return ((Date.now() - 1420070400000) * 4194304).toString(); }
     function prep(m) { return { id:m.id, channel_id:m.channel_id, content:m.content, timestamp:m.timestamp, edited_timestamp:m.edited_timestamp, author:m.author, type:m.type||0, flags:m.flags||0, state:"SENT", blocked:false, pinned:false, tts:false, mention_everyone:false, mentions:[], mention_roles:[], reactions:[], attachments:[], embeds:[] }; }
     function inject(chId, m) { try { if(!FinalDispatcher)return; FinalDispatcher.dispatch({type:"MESSAGE_CREATE",channelId:chId,message:prep(m),optimistic:false,isPushNotification:false,suppressNotifications:true,isRead:true,isAcknowledged:true,silent:true}); FinalDispatcher.dispatch({type:"MESSAGE_ACK",channelId:chId,messageId:m.id,readState:"READ"}); } catch(e){log("inject err:"+e.message);} }
-    function injectSilent(chId, m) { try { if(!FinalDispatcher)return; FinalDispatcher.dispatch({type:"MESSAGE_CREATE",channelId:chId,message:prep(m),optimistic:false,isPushNotification:false,suppressNotifications:true,isRead:true,isAcknowledged:true,silent:true}); FinalDispatcher.dispatch({type:"MESSAGE_ACK",channelId:chId,messageId:m.id,readState:"READ"}); } catch(e){ log("silentInject err:"+e.message); } }
+    function injectSilent(chId, m) { try { if(!FinalDispatcher)return; FinalDispatcher.dispatch({type:"LOAD_MESSAGES_SUCCESS",channelId:chId,messages:[prep(m)],isBefore:true,isAfter:false,hasMoreBefore:true,hasMoreAfter:false,limit:1}); FinalDispatcher.dispatch({type:"MESSAGE_ACK",channelId:chId,messageId:m.id,readState:"READ"}); } catch(e){ log("silentInject err:"+e.message); } }
     function storeFake(chId, m) { var all=getFakeMessages(); if(!all[chId])all[chId]=[]; all[chId].push(m); saveFakeMessages(all); }
     function buildMsg(chId, authId, content) { var author=UserStore?UserStore.getUser(authId):null; var id=generateSnowflake(); return { id:id, channel_id:chId, content:content, timestamp:new Date().toISOString(), edited_timestamp:null, tts:false, mention_everyone:false, mentions:[], mention_roles:[], attachments:[], embeds:[], reactions:[], pinned:false, type:0, flags:0, author:author?{id:author.id,username:author.username,discriminator:author.discriminator,avatar:author.avatar,bot:author.bot||false,global_name:author.globalName||author.username}:{id:authId,username:"Unknown User",discriminator:"0000",avatar:null,bot:false} }; }
     // Persist last DM on restart — only the most recent one
@@ -41,20 +41,20 @@
             if (hasOther) {
               log("persist: injecting " + msgs.length + " msgs into " + chIds[c]);
               msgs.sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); });
-              for (var mi = 0; mi < msgs.length; mi++) { inject(chIds[c], msgs[mi]); }
+              var prepped = [];
+              for (var mi = 0; mi < msgs.length; mi++) { prepped.push(prep(msgs[mi])); }
+              FinalDispatcher.dispatch({type:"LOAD_MESSAGES_SUCCESS",channelId:chIds[c],messages:prepped,isBefore:true,isAfter:false,hasMoreBefore:true,hasMoreAfter:false,limit:prepped.length});
               FinalDispatcher.dispatch({type:"MESSAGE_ACK",channelId:chIds[c],messageId:msgs[msgs.length-1].id,readState:"READ"});
-              // Hide "beginning of conversation" by telling Discord there are older messages
-              FinalDispatcher.dispatch({type:"LOAD_MESSAGES_SUCCESS",channelId:chIds[c],messages:[],isBefore:true,isAfter:false,hasMoreBefore:true,hasMoreAfter:false,limit:0});
               storage._persistInjected = chIds[c];
               break;
             }
           }
-        } catch(e) { log("persist inject err:" + e.message); } }, 3000);
+        } catch(e) { log("persist inject err:" + e.message); } }, 1500);
         return; }
       var mod2 = findByProps("openPrivateChannel");
       log("persist: openPrivateChannel=" + (mod2 && mod2.openPrivateChannel ? "found" : "NULL"));
       if (mod2 && mod2.openPrivateChannel) { mod2.openPrivateChannel(otherId); log("persist: openPrivateChannel called"); }
-    } catch(e) { log("persist err:" + e.message); } }, 8000);
+    } catch(e) { log("persist err:" + e.message); } }, 2000);
 
     this._cmds = [];
     var cmds = [
