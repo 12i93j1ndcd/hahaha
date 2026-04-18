@@ -138,9 +138,9 @@
           type: "LOAD_MESSAGES_SUCCESS",
           channelId: channelId,
           messages: prepared,
-          isBefore: true,
-          isAfter: false,
-          hasMoreBefore: false,
+          isBefore: false,
+          isAfter: true,
+          hasMoreBefore: true,
           hasMoreAfter: false,
           limit: prepared.length,
           isFetchingMore: false
