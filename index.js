@@ -43,6 +43,7 @@
               msgs.sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); });
               for (var mi = 0; mi < msgs.length; mi++) { inject(chIds[c], msgs[mi]); }
               FinalDispatcher.dispatch({type:"MESSAGE_ACK",channelId:chIds[c],messageId:msgs[msgs.length-1].id,readState:"READ"});
+              storage._persistInjected = chIds[c];
               break;
             }
           }
@@ -87,6 +88,7 @@
     this._unsubs = [];
     var handleLoad = function(evt) {
       var chId=evt&&evt.channelId;if(!chId)return;
+      if(storage._persistInjected===chId){storage._persistInjected=null;return;}
       var stored=getFakeMessages()[chId];if(!stored||stored.length===0)return;
       var existing=MessageStore&&MessageStore.getMessages?MessageStore.getMessages(chId):null;
       var ids={};if(existing&&existing.toArray){existing.toArray().forEach(function(m){ids[m.id]=true;});}
