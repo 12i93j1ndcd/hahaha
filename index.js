@@ -104,18 +104,24 @@
       };
     }
 
-    // Keep DM open — construct channel and force it into the DM list
+    // Keep DM open — try multiple approaches
     this._dmInterval = null;
     this._dmUnsub = null;
     
+    var PrivateChannelActions = findByProps("openPrivateChannel");
+    var DMListStore = findByProps("getPrivateChannelIds");
+    log("PrivateChannelActions: " + (PrivateChannelActions ? "found" : "NULL"));
+    log("DMListStore: " + (DMListStore ? "found" : "NULL"));
+
     var persistDMs = function() {
       try {
         var allFake = getFakeMessages();
         var fakeChIds = Object.keys(allFake);
+        log("persistDMs running, channels=" + fakeChIds.length);
         var meModule = findByProps("getCurrentUser");
         var currentUser = meModule ? meModule.getCurrentUser() : null;
         var myId = currentUser ? currentUser.id : null;
-        if (!myId) return;
+        if (!myId) { log("persistDMs: no myId"); return; }
 
         for (var fc = 0; fc < fakeChIds.length; fc++) {
           var chId = fakeChIds[fc];
@@ -130,55 +136,45 @@
               break;
             }
           }
-          if (!otherId) continue;
+          if (!otherId) { log("persistDMs: no otherId for " + chId); continue; }
+          log("persistDMs: ch=" + chId + " other=" + otherId);
 
-          // Get last message for the DM preview
-          var lastMsg = msgs[msgs.length - 1];
+          // Method 1: openPrivateChannel
+          if (PrivateChannelActions && PrivateChannelActions.openPrivateChannel) {
+            try {
+              PrivateChannelActions.openPrivateChannel(otherId);
+              log("openPrivateChannel called for " + otherId);
+            } catch(e) { log("openPrivateChannel err: " + e.message); }
+          }
 
-          // Try existing channel first
-          var ch = ChannelStore ? ChannelStore.getChannel(chId) : null;
-          
-          if (ch) {
-            FinalDispatcher.dispatch({ type: "CHANNEL_CREATE", channel: ch });
-          } else {
-            // Build a fake DM channel object
+          // Method 2: CHANNEL_CREATE with constructed channel
+          try {
+            var lastMsg = msgs[msgs.length - 1];
             FinalDispatcher.dispatch({
               type: "CHANNEL_CREATE",
               channel: {
                 id: chId,
                 type: 1,
-                recipients: [otherId],
+                recipients: [{ id: otherId }],
+                recipient_ids: [otherId],
                 last_message_id: lastMsg.id,
                 is_spam: false,
-                flags: 0
+                flags: 0,
+                owner_id: otherId
               }
             });
-          }
+            log("CHANNEL_CREATE dispatched for " + chId);
+          } catch(e) { log("CHANNEL_CREATE err: " + e.message); }
         }
-      } catch(e) { log("DM persist error: " + e.message); }
+      } catch(e) { log("persistDMs error: " + e.message + " stack: " + e.stack); }
     };
 
-    // Run after Discord loads, then every 10 seconds
     var self2 = this;
     setTimeout(function() {
+      log("persistDMs first run");
       persistDMs();
-      self2._dmInterval = setInterval(persistDMs, 10000);
-    }, 5000);
-
-    // Block CHANNEL_DELETE for our fake DM channels
-    if (FinalDispatcher && FinalDispatcher.subscribe) {
-      var blockDelete = function(evt) {
-        try {
-          var allFake = getFakeMessages();
-          var chId = evt && evt.channel && evt.channel.id;
-          if (chId && allFake[chId]) {
-            setTimeout(function() { persistDMs(); }, 100);
-          }
-        } catch(e) {}
-      };
-      FinalDispatcher.subscribe("CHANNEL_DELETE", blockDelete);
-      this._dmUnsub = function() { FinalDispatcher.unsubscribe("CHANNEL_DELETE", blockDelete); };
-    }
+      self2._dmInterval = setInterval(persistDMs, 30000);
+    }, 8000);
 
     // Commands
     this._cmds = [];
