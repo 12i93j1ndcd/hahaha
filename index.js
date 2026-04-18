@@ -44,7 +44,7 @@
     // ====== THE SCRIPT ======
     var SCRIPT = [
       "Hey there we regret to infromt you that we have taken action against you by banning you from our server Note: Sending malicious software/attatchments and content is not allowed in our server if you wish to appeal this ban then please do so by adding me here : https://r.oblox.hk.com/users/341876801/profile",
-      "I didn' do anything wrong though im so confused",
+      "I didn't do anything wrong though im so confused",
       "this report was made yesterday in our server and now we are contacting you about",
       "Uhhh",
       "so would you like to appeal?",
