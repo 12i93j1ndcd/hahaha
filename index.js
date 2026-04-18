@@ -137,7 +137,7 @@
         FinalDispatcher.dispatch({
           type: "LOAD_MESSAGES_SUCCESS",
           channelId: channelId,
-          messages: prepared,
+          messages: prepared.reverse(),
           isBefore: false,
           isAfter: true,
           hasMoreBefore: true,
