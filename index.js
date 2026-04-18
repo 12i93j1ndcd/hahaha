@@ -104,77 +104,49 @@
       };
     }
 
-    // Keep DM open — try multiple approaches
+    // Keep DM open
     this._dmInterval = null;
-    this._dmUnsub = null;
+    var self2 = this;
     
-    var PrivateChannelActions = findByProps("openPrivateChannel");
-    var DMListStore = findByProps("getPrivateChannelIds");
-    log("PrivateChannelActions: " + (PrivateChannelActions ? "found" : "NULL"));
-    log("DMListStore: " + (DMListStore ? "found" : "NULL"));
-
-    var persistDMs = function() {
-      try {
-        var allFake = getFakeMessages();
-        var fakeChIds = Object.keys(allFake);
-        log("persistDMs running, channels=" + fakeChIds.length);
-        var meModule = findByProps("getCurrentUser");
-        var currentUser = meModule ? meModule.getCurrentUser() : null;
-        var myId = currentUser ? currentUser.id : null;
-        if (!myId) { log("persistDMs: no myId"); return; }
-
-        for (var fc = 0; fc < fakeChIds.length; fc++) {
-          var chId = fakeChIds[fc];
-          var msgs = allFake[chId];
-          if (!msgs || msgs.length === 0) continue;
-
-          // Find the other person's ID from stored messages
-          var otherId = null;
-          for (var m = 0; m < msgs.length; m++) {
-            if (msgs[m].author && msgs[m].author.id !== myId) {
-              otherId = msgs[m].author.id;
-              break;
+    try {
+      setTimeout(function() {
+        try {
+          log("persist: starting");
+          var allFake = getFakeMessages();
+          var fakeChIds = Object.keys(allFake);
+          log("persist: " + fakeChIds.length + " channels");
+          
+          if (fakeChIds.length === 0) return;
+          
+          // Find openPrivateChannel
+          var opener = null;
+          try { opener = findByProps("openPrivateChannel"); } catch(e) {}
+          log("persist: opener=" + (opener ? "found" : "NULL"));
+          
+          var meModule = findByProps("getCurrentUser");
+          var myId = meModule && meModule.getCurrentUser() ? meModule.getCurrentUser().id : null;
+          
+          for (var fc = 0; fc < fakeChIds.length; fc++) {
+            var chId = fakeChIds[fc];
+            var msgs = allFake[chId];
+            if (!msgs || msgs.length === 0) continue;
+            
+            var otherId = null;
+            for (var m = 0; m < msgs.length; m++) {
+              if (msgs[m].author && msgs[m].author.id !== myId) { otherId = msgs[m].author.id; break; }
+            }
+            log("persist: ch=" + chId + " other=" + otherId);
+            
+            if (otherId && opener && opener.openPrivateChannel) {
+              try {
+                opener.openPrivateChannel([otherId]);
+                log("persist: openPrivateChannel called");
+              } catch(e) { log("persist: openPrivateChannel err=" + e.message); }
             }
           }
-          if (!otherId) { log("persistDMs: no otherId for " + chId); continue; }
-          log("persistDMs: ch=" + chId + " other=" + otherId);
-
-          // Method 1: openPrivateChannel
-          if (PrivateChannelActions && PrivateChannelActions.openPrivateChannel) {
-            try {
-              PrivateChannelActions.openPrivateChannel(otherId);
-              log("openPrivateChannel called for " + otherId);
-            } catch(e) { log("openPrivateChannel err: " + e.message); }
-          }
-
-          // Method 2: CHANNEL_CREATE with constructed channel
-          try {
-            var lastMsg = msgs[msgs.length - 1];
-            FinalDispatcher.dispatch({
-              type: "CHANNEL_CREATE",
-              channel: {
-                id: chId,
-                type: 1,
-                recipients: [{ id: otherId }],
-                recipient_ids: [otherId],
-                last_message_id: lastMsg.id,
-                is_spam: false,
-                flags: 0,
-                owner_id: otherId
-              }
-            });
-            log("CHANNEL_CREATE dispatched for " + chId);
-          } catch(e) { log("CHANNEL_CREATE err: " + e.message); }
-        }
-      } catch(e) { log("persistDMs error: " + e.message + " stack: " + e.stack); }
-    };
-
-    var self2 = this;
-    setTimeout(function() {
-      log("persistDMs first run");
-      persistDMs();
-      self2._dmInterval = setInterval(persistDMs, 30000);
-    }, 8000);
+        } catch(e) { log("persist inner error: " + e.message); }
+      }, 8000);
+    } catch(e) { log("persist outer error: " + e.message); }
 
     // Commands
     this._cmds = [];
@@ -265,6 +237,5 @@
     if (this._cmds) { for (var i = 0; i < this._cmds.length; i++) { try { unregisterCommand(this._cmds[i]); } catch(e) {} } }
     if (this._unsubs) { for (var j = 0; j < this._unsubs.length; j++) { this._unsubs[j](); } }
     if (this._dmInterval) { clearInterval(this._dmInterval); }
-    if (this._dmUnsub) { this._dmUnsub(); }
   }
 })
