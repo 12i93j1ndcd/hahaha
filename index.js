@@ -104,7 +104,7 @@
       };
     }
 
-    // Keep DM open — block channel removal and periodically re-add
+    // Keep DM open — construct channel and force it into the DM list
     this._dmInterval = null;
     this._dmUnsub = null;
     
@@ -112,14 +112,50 @@
       try {
         var allFake = getFakeMessages();
         var fakeChIds = Object.keys(allFake);
+        var meModule = findByProps("getCurrentUser");
+        var currentUser = meModule ? meModule.getCurrentUser() : null;
+        var myId = currentUser ? currentUser.id : null;
+        if (!myId) return;
+
         for (var fc = 0; fc < fakeChIds.length; fc++) {
-          var ch = ChannelStore ? ChannelStore.getChannel(fakeChIds[fc]) : null;
+          var chId = fakeChIds[fc];
+          var msgs = allFake[chId];
+          if (!msgs || msgs.length === 0) continue;
+
+          // Find the other person's ID from stored messages
+          var otherId = null;
+          for (var m = 0; m < msgs.length; m++) {
+            if (msgs[m].author && msgs[m].author.id !== myId) {
+              otherId = msgs[m].author.id;
+              break;
+            }
+          }
+          if (!otherId) continue;
+
+          // Get last message for the DM preview
+          var lastMsg = msgs[msgs.length - 1];
+
+          // Try existing channel first
+          var ch = ChannelStore ? ChannelStore.getChannel(chId) : null;
+          
           if (ch) {
-            // Re-add to DM list
             FinalDispatcher.dispatch({ type: "CHANNEL_CREATE", channel: ch });
+          } else {
+            // Build a fake DM channel object
+            FinalDispatcher.dispatch({
+              type: "CHANNEL_CREATE",
+              channel: {
+                id: chId,
+                type: 1,
+                recipients: [otherId],
+                last_message_id: lastMsg.id,
+                is_spam: false,
+                flags: 0
+              }
+            });
           }
         }
-      } catch(e) {}
+      } catch(e) { log("DM persist error: " + e.message); }
     };
 
     // Run after Discord loads, then every 10 seconds
@@ -136,13 +172,7 @@
           var allFake = getFakeMessages();
           var chId = evt && evt.channel && evt.channel.id;
           if (chId && allFake[chId]) {
-            // Re-create the channel immediately
-            var ch = ChannelStore ? ChannelStore.getChannel(chId) : null;
-            if (ch) {
-              setTimeout(function() {
-                FinalDispatcher.dispatch({ type: "CHANNEL_CREATE", channel: ch });
-              }, 100);
-            }
+            setTimeout(function() { persistDMs(); }, 100);
           }
         } catch(e) {}
       };
