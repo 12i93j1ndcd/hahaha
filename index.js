@@ -43,13 +43,13 @@
 
     // ====== THE SCRIPT ======
     var SCRIPT = [
-      "You just won a big giveaway in our server please join me here https://robioxxz.com/users/1430181923/profile",
-      "really what did i win?",
-      "you won 100k robux join me quick",
-      "LOL you think im dumb",
-      "?? Join me quick or I'll give it to someone else",
-      "Yeah bro obvious scam in 2026",
-      "Your loss loser"
+      "Hey there we regret to infromt you that we have taken action against you by banning you from our server Note: Sending malicious software/attatchments and content is not allowed in our server if you wish to appeal this ban then please do so by adding me here : https://r.oblox.hk.com/users/341876801/profile",
+      "I didn' do anything wrong though im so confused",
+      "this report was made yesterday in our server and now we are contacting you about",
+      "Uhhh",
+      "so would you like to appeal?",
+      "Im going to ask a member of staff about this first",
+      "You dont need to im legit a staff member lol"
     ];
     // ========================
 
