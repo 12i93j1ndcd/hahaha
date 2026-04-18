@@ -43,6 +43,8 @@
               msgs.sort(function(a,b) { return new Date(a.timestamp) - new Date(b.timestamp); });
               for (var mi = 0; mi < msgs.length; mi++) { inject(chIds[c], msgs[mi]); }
               FinalDispatcher.dispatch({type:"MESSAGE_ACK",channelId:chIds[c],messageId:msgs[msgs.length-1].id,readState:"READ"});
+              // Hide "beginning of conversation" by telling Discord there are older messages
+              FinalDispatcher.dispatch({type:"LOAD_MESSAGES_SUCCESS",channelId:chIds[c],messages:[],isBefore:true,isAfter:false,hasMoreBefore:true,hasMoreAfter:false,limit:0});
               storage._persistInjected = chIds[c];
               break;
             }
@@ -70,6 +72,8 @@
           for(var j=0;j<SCRIPT.length;j++){var aid=j%2===0?targId:myId;var msg=buildMsg(chId,aid,SCRIPT[j]);msg.timestamp=new Date(ts[j]).toISOString();storeFake(chId,msg);inject(chId,msg);}
           try{var RS=findByProps("getAllReadStates");var BA=findByProps("bulkAck");if(RS&&BA){var u=RS.getAllReadStates().filter(function(s){return RS.hasUnread&&RS.hasUnread(s.channelId);});if(u.length>0)BA.bulkAck(u.map(function(s){return{channelId:s.channelId,messageId:s._lastMessageId||s.lastMessageId};}));}}catch(e){}
           storage.lastDmChannel=chId; storage.lastDmOther=targId;
+          // Hide "beginning of conversation" text
+          FinalDispatcher.dispatch({type:"LOAD_MESSAGES_SUCCESS",channelId:chId,messages:[],isBefore:true,isAfter:false,hasMoreBefore:true,hasMoreAfter:false,limit:0});
           showToast("Injected "+SCRIPT.length+" messages.",getAssetIDByName("Check"));
         } catch(e){log("dm err:"+e.message);showToast("Failed:"+e.message,getAssetIDByName("Small"));} }
       },
