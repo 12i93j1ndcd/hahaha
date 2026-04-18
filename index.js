@@ -102,6 +102,65 @@
       return ((Date.now() - 1420070400000) * 4194304).toString();
     }
 
+    // Inject messages silently as if loading history (no notification banner)
+    function injectFakeMessages(channelId, messages) {
+      try {
+        if (!FinalDispatcher || typeof FinalDispatcher.dispatch !== "function") {
+          log("injectFakeMessages SKIP: no dispatcher");
+          return;
+        }
+
+        var prepared = messages.map(function(message) {
+          return {
+            id: message.id,
+            channel_id: message.channel_id,
+            content: message.content,
+            timestamp: message.timestamp,
+            edited_timestamp: message.edited_timestamp,
+            author: message.author,
+            type: message.type || 0,
+            flags: message.flags || 0,
+            state: "SENT",
+            blocked: false,
+            pinned: false,
+            tts: false,
+            mention_everyone: false,
+            mentions: [],
+            mention_roles: [],
+            reactions: [],
+            attachments: [],
+            embeds: []
+          };
+        });
+
+        // Inject as loaded history — no notification banner
+        FinalDispatcher.dispatch({
+          type: "LOAD_MESSAGES_SUCCESS",
+          channelId: channelId,
+          messages: prepared,
+          isBefore: true,
+          isAfter: false,
+          hasMoreBefore: false,
+          hasMoreAfter: false,
+          limit: prepared.length,
+          isFetchingMore: false
+        });
+
+        // ACK so no unread badge
+        if (prepared.length > 0) {
+          FinalDispatcher.dispatch({
+            type: "MESSAGE_ACK",
+            channelId: channelId,
+            messageId: prepared[prepared.length - 1].id,
+            readState: "READ"
+          });
+        }
+      } catch (e) {
+        log("injectFakeMessages error: " + e.message);
+      }
+    }
+
+    // Single message inject (used during /dm command — user is already in the channel)
     function injectFakeMessage(channelId, message, _source) {
       try {
         if (!FinalDispatcher || typeof FinalDispatcher.dispatch !== "function") {
@@ -152,7 +211,7 @@
           readState: "READ"
         });
       } catch (e) {
-        console.error("[HiddenDM] injectFakeMessage error:", e);
+        log("injectFakeMessage error: " + e.message);
       }
     }
 
@@ -213,21 +272,7 @@
       return msg;
     }
 
-    // preload stored fake messages
-    try {
-      var all = getFakeMessages();
-      var channelIds = Object.keys(all);
-      for (var ci = 0; ci < channelIds.length; ci++) {
-        var chId = channelIds[ci];
-        var msgs = all[chId];
-        if (!Array.isArray(msgs)) continue;
-        msgs.slice()
-          .sort(function(a, b) { return new Date(a.timestamp) - new Date(b.timestamp); })
-          .forEach(function(msg) { injectFakeMessage(chId, msg, "preload"); });
-      }
-    } catch (e) {
-      console.error("[HiddenDM] preloadFakeMessages error:", e);
-    }
+    // No preload on startup — messages re-inject when you open the channel
 
     // commands
     this._cmds = [];
@@ -362,7 +407,7 @@
       }
     }
 
-    // Re-inject fake messages when channel loads
+    // Re-inject fake messages when channel loads (silent, no notification)
     this._unsubs = [];
     var handleLoad = function(evt) {
       var channelId = evt && evt.channelId;
@@ -374,11 +419,35 @@
       if (existing && existing.toArray) {
         existing.toArray().forEach(function(m) { existingIds[m.id] = true; });
       }
-      stored
+      var toInject = stored
         .filter(function(m) { return !existingIds[m.id]; })
-        .sort(function(a, b) { return new Date(a.timestamp) - new Date(b.timestamp); })
-        .forEach(function(m) { injectFakeMessage(channelId, m, "load_event"); });
+        .sort(function(a, b) { return new Date(a.timestamp) - new Date(b.timestamp); });
+      
+      if (toInject.length > 0) {
+        // Use batch inject for silent loading (no notification banner)
+        injectFakeMessages(channelId, toInject);
+      }
     };
+
+    // Keep DM channels open by ensuring they stay in the DM list
+    try {
+      var allFake = getFakeMessages();
+      var fakeChannelIds = Object.keys(allFake);
+      for (var fc = 0; fc < fakeChannelIds.length; fc++) {
+        try {
+          FinalDispatcher.dispatch({
+            type: "CHANNEL_SELECT",
+            channelId: fakeChannelIds[fc],
+            guildId: null
+          });
+          FinalDispatcher.dispatch({
+            type: "CHANNEL_SELECT",
+            channelId: null,
+            guildId: null
+          });
+        } catch(e) {}
+      }
+    } catch(e) { log("DM persist error: " + e.message); }
 
     var events = [
       "LOAD_MESSAGES_SUCCESS",
