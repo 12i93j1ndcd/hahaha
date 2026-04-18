@@ -3,12 +3,7 @@
   "name": "HiddenDM",
   "version": "1.0.0",
   "description": "Create fake messages from any user in DMs",
-  "authors": [
-    {
-      "name": "dylan",
-      "id": "1278523345498800130"
-    }
-  ],
+  "authors": [],
   "main": "index.js",
-  "hash": "be64cd9902cefc0e35739c4ce75e8e15c90a35cf53a58ce221198ab27fd52f51"
+  "hash": "2fc6870cafc844c68316f9338a0e7fa9d30eeea60c306906e42c841dcbe4b655"
 }
