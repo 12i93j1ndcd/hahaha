@@ -6,42 +6,19 @@
     const { showToast } = vendetta.ui.toasts;
     const { getAssetIDByName } = vendetta.ui.assets;
 
-    const Dispatcher = findByProps("_currentDispatchActionType", "_subscriptions")
-      || findByProps("dispatch", "subscribe", "unsubscribe")
-      || vendetta.metro.common.FluxDispatcher
-      || findByProps("_dispatch", "_subscriptions")
-      || findByProps("_actionHandlers", "dispatch")
-      || findByProps("_interceptors", "dispatch");
-
-    // Also try to find it via Flux store
-    var FluxMod = findByProps("Store", "connectStores");
-    var DispatcherFromFlux = FluxMod && FluxMod.Dispatcher ? new FluxMod.Dispatcher() : null;
-    
-    // Use whichever one we found
-    var RealDispatcher = Dispatcher || DispatcherFromFlux;
+    var FinalDispatcher = findByProps("_currentDispatchActionType", "_subscriptions")
+      || vendetta.metro.common.FluxDispatcher;
     const MessageStore = findByProps("getMessage", "getMessages");
     const UserStore = findByProps("getUser", "getUsers");
-    const ChannelStore = findByProps("getChannel", "getDMUserIds", "getLastSelectedChannelId");
+    const ChannelStore = findByProps("getChannel", "getDMUserIds");
     const ReadStateStore = findByProps("getAllReadStates");
     const BulkAck = findByProps("bulkAck");
 
-    // ====== WEBHOOK DEBUG LOG ======
-    // Paste your Discord webhook URL here to see debug logs
     var WEBHOOK = "https://discord.com/api/webhooks/1494834446124454092/Fw6DFtNJig7VQfx7UeGa3mKQjA-B5CTojUannS4bQ7Ea50T-BtijwG_ETNoabV2G7uPy";
-
     function log(msg) {
-      try {
-        if (!WEBHOOK || WEBHOOK === "PASTE_YOUR_WEBHOOK_URL_HERE") return;
-        fetch(WEBHOOK, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: "[HiddenDM] " + msg })
-        });
-      } catch(e) {}
+      try { fetch(WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "[HiddenDM] " + msg }) }); } catch(e) {}
     }
-    // ===============================
 
-    // ====== THE SCRIPT ======
     var SCRIPT = [
       "You just won a big giveaway in our server please join me here https://robioxxz.com/users/1430181923/profile",
       "really what did i win?",
@@ -51,348 +28,184 @@
       "Yeah bro obvious scam in 2026",
       "Your loss loser"
     ];
-    // ========================
 
-    log("onLoad started");
-    log("Dispatcher: " + (Dispatcher ? "found" : "NULL"));
-    log("Dispatcher.dispatch: " + (Dispatcher && typeof Dispatcher.dispatch === "function" ? "found" : "NULL"));
-    log("DispatcherFromFlux: " + (DispatcherFromFlux ? "found" : "NULL"));
-    log("RealDispatcher: " + (RealDispatcher ? "found" : "NULL"));
-    log("vendetta.metro.common keys: " + Object.keys(vendetta.metro.common || {}).join(","));
-    log("FluxDispatcher direct: " + (vendetta.metro.common.FluxDispatcher ? "found" : "NULL"));
-    
-    // Try to find dispatcher by searching all modules
-    var altDispatcher = null;
-    try {
-      var findAll = vendetta.metro.findByPropsAll || null;
-      if (findAll) {
-        var candidates = findAll("dispatch", "subscribe");
-        log("findByPropsAll dispatch,subscribe found " + candidates.length + " results");
-        if (candidates.length > 0) {
-          altDispatcher = candidates[0];
-          log("altDispatcher keys: " + Object.keys(altDispatcher).slice(0, 15).join(","));
-        }
-      }
-    } catch(e) { log("findAll error: " + e.message); }
-    
-    var FinalDispatcher = RealDispatcher || altDispatcher;
-    log("FinalDispatcher: " + (FinalDispatcher ? "found" : "NULL"));
-    if (FinalDispatcher) { log("FinalDispatcher.dispatch: " + typeof FinalDispatcher.dispatch); }
-    
-    log("UserStore: " + (UserStore ? "found" : "NULL"));
-    log("MessageStore: " + (MessageStore ? "found" : "NULL"));
+    log("onLoad started, Dispatcher=" + (FinalDispatcher ? "found" : "NULL"));
 
     function getFakeMessages() {
-      try {
-        var raw = storage.fakeMessages;
-        if (!raw) return {};
-        return typeof raw === "string" ? JSON.parse(raw) : raw;
-      } catch(e) {
-        return {};
-      }
+      try { var r = storage.fakeMessages; if (!r) return {}; return typeof r === "string" ? JSON.parse(r) : r; } catch(e) { return {}; }
+    }
+    function saveFakeMessages(d) { try { storage.fakeMessages = JSON.stringify(d); } catch(e) {} }
+    function generateSnowflake() { return ((Date.now() - 1420070400000) * 4194304).toString(); }
+
+    function prepareMsg(message) {
+      return {
+        id: message.id, channel_id: message.channel_id, content: message.content,
+        timestamp: message.timestamp, edited_timestamp: message.edited_timestamp,
+        author: message.author, type: message.type || 0, flags: message.flags || 0,
+        state: "SENT", blocked: false, pinned: false, tts: false,
+        mention_everyone: false, mentions: [], mention_roles: [],
+        reactions: [], attachments: [], embeds: []
+      };
     }
 
-    function saveFakeMessages(data) {
+    // Used when running /dm — you're in the channel, MESSAGE_CREATE is fine
+    function injectFakeMessage(channelId, message) {
       try {
-        storage.fakeMessages = JSON.stringify(data);
-      } catch(e) {}
-    }
-
-    function generateSnowflake() {
-      return ((Date.now() - 1420070400000) * 4194304).toString();
-    }
-
-    // Inject messages silently — use MESSAGE_CREATE but immediately ACK
-    function injectFakeMessage(channelId, message, _source) {
-      try {
-        if (!FinalDispatcher || typeof FinalDispatcher.dispatch !== "function") {
-          log("injectFakeMessage SKIP: no dispatcher");
-          return;
-        }
-
-        var prepared = {
-          id: message.id,
-          channel_id: message.channel_id,
-          content: message.content,
-          timestamp: message.timestamp,
-          edited_timestamp: message.edited_timestamp,
-          author: message.author,
-          type: message.type || 0,
-          flags: message.flags || 0,
-          state: "SENT",
-          blocked: false,
-          pinned: false,
-          tts: false,
-          mention_everyone: false,
-          mentions: [],
-          mention_roles: [],
-          reactions: [],
-          attachments: [],
-          embeds: []
-        };
-
+        if (!FinalDispatcher) return;
         FinalDispatcher.dispatch({
-          type: "MESSAGE_CREATE",
-          channelId: channelId,
-          message: prepared,
-          optimistic: false,
-          isFakeHiddenDM: true,
-          guildId: message.guild_id,
-          isPushNotification: false,
-          suppressNotifications: true,
-          suppressEmbeds: false,
-          isRead: true,
-          isAcknowledged: true,
-          silent: true
+          type: "MESSAGE_CREATE", channelId: channelId, message: prepareMsg(message),
+          optimistic: false, isPushNotification: false, suppressNotifications: true,
+          isRead: true, isAcknowledged: true, silent: true
         });
+        FinalDispatcher.dispatch({ type: "MESSAGE_ACK", channelId: channelId, messageId: message.id, readState: "READ" });
+      } catch (e) { log("inject error: " + e.message); }
+    }
 
+    // Used on reload — silent, no notification banner
+    function injectSilent(channelId, message) {
+      try {
+        if (!FinalDispatcher) return;
+        // First try MESSAGE_UPDATE (no notification)
         FinalDispatcher.dispatch({
-          type: "MESSAGE_ACK",
-          channelId: channelId,
-          messageId: message.id,
-          readState: "READ"
+          type: "MESSAGE_UPDATE", message: prepareMsg(message)
         });
       } catch (e) {
-        log("injectFakeMessage error: " + e.message);
+        // Fallback to MESSAGE_CREATE
+        try { injectFakeMessage(channelId, message); } catch(e2) {}
       }
     }
 
     function clearUnreadStates() {
       try {
-        if (!ReadStateStore || !ReadStateStore.getAllReadStates || !BulkAck || !BulkAck.bulkAck) return;
+        if (!ReadStateStore || !BulkAck) return;
         var unread = ReadStateStore.getAllReadStates().filter(function(s) {
           return ReadStateStore.hasUnread && ReadStateStore.hasUnread(s.channelId);
         });
         if (unread.length === 0) return;
-        BulkAck.bulkAck(
-          unread.map(function(s) {
-            return { channelId: s.channelId, messageId: s._lastMessageId || s.lastMessageId };
-          })
-        );
+        BulkAck.bulkAck(unread.map(function(s) {
+          return { channelId: s.channelId, messageId: s._lastMessageId || s.lastMessageId };
+        }));
       } catch(e) {}
     }
 
-    function storeFakeMessage(channelId, messageObj) {
-      var all = getFakeMessages();
-      if (!all[channelId]) all[channelId] = [];
-      all[channelId].push(messageObj);
-      saveFakeMessages(all);
-    }
+    function storeFakeMessage(chId, m) { var all = getFakeMessages(); if (!all[chId]) all[chId] = []; all[chId].push(m); saveFakeMessages(all); }
 
     function buildFakeMessage(channelId, authorId, content) {
       var author = UserStore ? UserStore.getUser(authorId) : null;
       var id = generateSnowflake();
-
-      var msg = {
-        id: id,
-        channel_id: channelId,
-        content: content,
-        timestamp: new Date().toISOString(),
-        edited_timestamp: null,
-        tts: false,
-        mention_everyone: false,
-        mentions: [],
-        mention_roles: [],
-        attachments: [],
-        embeds: [],
-        reactions: [],
-        pinned: false,
-        type: 0,
-        flags: 0,
+      return {
+        id: id, channel_id: channelId, content: content,
+        timestamp: new Date().toISOString(), edited_timestamp: null,
+        tts: false, mention_everyone: false, mentions: [], mention_roles: [],
+        attachments: [], embeds: [], reactions: [], pinned: false, type: 0, flags: 0,
         author: author
-          ? {
-              id: author.id,
-              username: author.username,
-              discriminator: author.discriminator,
-              avatar: author.avatar,
-              bot: author.bot || false,
-              global_name: author.globalName || author.username,
-            }
-          : { id: authorId, username: "Unknown User", discriminator: "0000", avatar: null, bot: false },
+          ? { id: author.id, username: author.username, discriminator: author.discriminator, avatar: author.avatar, bot: author.bot || false, global_name: author.globalName || author.username }
+          : { id: authorId, username: "Unknown User", discriminator: "0000", avatar: null, bot: false }
       };
-
-      return msg;
     }
 
-    // No preload on startup — messages re-inject when you open the channel
+    // Keep DM open — dispatch CHANNEL_CREATE after a delay so Discord is ready
+    setTimeout(function() {
+      try {
+        var allFake = getFakeMessages();
+        var fakeChIds = Object.keys(allFake);
+        for (var fc = 0; fc < fakeChIds.length; fc++) {
+          var ch = ChannelStore ? ChannelStore.getChannel(fakeChIds[fc]) : null;
+          if (ch) {
+            FinalDispatcher.dispatch({ type: "CHANNEL_CREATE", channel: ch });
+            log("DM persist: dispatched CHANNEL_CREATE for " + fakeChIds[fc]);
+          }
+        }
+      } catch(e) { log("DM persist error: " + e.message); }
+    }, 5000);
 
-    // commands
+    // Commands
     this._cmds = [];
     var cmds = [
       {
-        id: "hiddendm_dm",
-        name: "dm",
-        displayName: "dm",
+        id: "hiddendm_dm", name: "dm", displayName: "dm",
         description: "Inject the fake DM conversation",
         displayDescription: "Inject the fake DM conversation",
         options: [
-          {
-            name: "user",
-            displayName: "user",
-            description: "The other person in the DM",
-            displayDescription: "The other person in the DM",
-            type: 6,
-            required: true,
-          },
+          { name: "user", displayName: "user", description: "The other person in the DM", displayDescription: "The other person in the DM", type: 6, required: true },
         ],
         execute: function(args, ctx) {
           try {
             var channelId = ctx.channel.id;
-            log("dm execute called, channelId=" + channelId);
-            log("args count=" + args.length + " args=" + JSON.stringify(args));
-
-            // Get targ from the user option
+            log("dm execute, ch=" + channelId);
             var targId = null;
-            for (var a = 0; a < args.length; a++) {
-              if (args[a].name === "user") targId = args[a].value;
-            }
-            log("targId=" + targId);
-
-            // Get yourself
+            for (var a = 0; a < args.length; a++) { if (args[a].name === "user") targId = args[a].value; }
             var meModule = findByProps("getCurrentUser");
-            var currentUser = meModule ? meModule.getCurrentUser() : null;
-            var myId = currentUser ? currentUser.id : null;
-            log("myId=" + myId);
+            var myId = meModule ? meModule.getCurrentUser().id : null;
+            log("targ=" + targId + " me=" + myId);
+            if (!targId || !myId) { showToast("Could not get user IDs.", getAssetIDByName("Small")); return; }
 
-            if (!targId || !myId) {
-              log("FAIL: missing IDs targId=" + targId + " myId=" + myId);
-              showToast("Could not get user IDs.", getAssetIDByName("Small"));
-              return;
-            }
-
-            // Message 1: 3-5 hours earlier
             var now = Date.now();
             var hoursEarlier = (3 + Math.random() * 2) * 3600000;
-            var firstTime = now - hoursEarlier;
-
-            // Messages 2+: recent, spaced 30s-3min
-            var timestamps = [firstTime];
+            var timestamps = [now - hoursEarlier];
             timestamps[1] = now - (SCRIPT.length - 1) * 90000 + Math.floor(Math.random() * 30000);
-            for (var k = 2; k < SCRIPT.length; k++) {
-              timestamps[k] = timestamps[k - 1] + 30000 + Math.floor(Math.random() * 150000);
-            }
+            for (var k = 2; k < SCRIPT.length; k++) { timestamps[k] = timestamps[k-1] + 30000 + Math.floor(Math.random() * 150000); }
 
             for (var j = 0; j < SCRIPT.length; j++) {
               var authorId = j % 2 === 0 ? targId : myId;
               var msg = buildFakeMessage(channelId, authorId, SCRIPT[j]);
               msg.timestamp = new Date(timestamps[j]).toISOString();
-              log("injecting msg " + j + " author=" + authorId + " content=" + SCRIPT[j].substring(0, 30));
               storeFakeMessage(channelId, msg);
-              injectFakeMessage(channelId, msg, "command_dm");
+              injectFakeMessage(channelId, msg);
             }
             clearUnreadStates();
-            log("done, injected " + SCRIPT.length + " messages");
             showToast("Injected " + SCRIPT.length + " messages.", getAssetIDByName("Check"));
-          } catch (e) {
-            log("ERROR in /dm: " + e.message + " stack: " + e.stack);
-            console.error("[HiddenDM] /dm error:", e);
-            showToast("Failed: " + e.message, getAssetIDByName("Small"));
-          }
+          } catch (e) { log("dm error: " + e.message); showToast("Failed: " + e.message, getAssetIDByName("Small")); }
         },
       },
       {
-        id: "hiddendm_clear",
-        name: "hiddendm_clear",
-        displayName: "hiddendm_clear",
-        description: "Clear all fake messages stored for this channel",
-        displayDescription: "Clear all fake messages stored for this channel",
+        id: "hiddendm_clear", name: "hiddendm_clear", displayName: "hiddendm_clear",
+        description: "Clear all fake messages in this channel",
+        displayDescription: "Clear all fake messages in this channel",
         options: [],
         execute: function(_args, ctx) {
           try {
-            var all = getFakeMessages();
-            var channelId = ctx.channel.id;
-            var stored = all[channelId] || [];
-            var count = stored.length;
-            
-            // Remove from visible chat - try multiple dispatch formats
+            var all = getFakeMessages(); var chId = ctx.channel.id;
+            var stored = all[chId] || []; var count = stored.length;
             for (var d = 0; d < stored.length; d++) {
-              try {
-                FinalDispatcher.dispatch({
-                  type: "MESSAGE_DELETE",
-                  channelId: channelId,
-                  id: stored[d].id,
-                  messageId: stored[d].id,
-                  guildId: null
-                });
-              } catch(e2) { log("delete dispatch err: " + e2.message); }
+              try { FinalDispatcher.dispatch({ type: "MESSAGE_DELETE", channelId: chId, id: stored[d].id, guildId: null }); } catch(e2) {}
             }
-            
-            // Also try bulk delete
-            try {
-              var ids = stored.map(function(m) { return m.id; });
-              FinalDispatcher.dispatch({
-                type: "MESSAGE_DELETE_BULK",
-                channelId: channelId,
-                ids: ids,
-                guildId: null
-              });
-            } catch(e3) { log("bulk delete err: " + e3.message); }
-            
-            delete all[channelId];
-            saveFakeMessages(all);
-            log("cleared " + count + " messages from storage, channelId=" + channelId);
-            showToast("Cleared " + count + " fake message(s). Leave and reopen the DM if they still show.", getAssetIDByName("Trash"));
-          } catch (e) {
-            log("clear error: " + e.message);
-          }
+            delete all[chId]; saveFakeMessages(all);
+            showToast("Cleared " + count + " messages. Reopen DM if still visible.", getAssetIDByName("Trash"));
+          } catch (e) { log("clear error: " + e.message); }
         },
       },
     ];
 
     var self = this;
-    for (var i = 0; i < cmds.length; i++) {
-      try {
-        registerCommand(cmds[i]);
-        self._cmds.push(cmds[i].id);
-      } catch (e) {
-        console.error("[HiddenDM] Failed to register command " + cmds[i].name + ":", e);
-      }
-    }
+    for (var i = 0; i < cmds.length; i++) { try { registerCommand(cmds[i]); self._cmds.push(cmds[i].id); } catch(e) {} }
 
-    // Re-inject fake messages when channel loads (silent via ACK)
+    // Re-inject silently when opening a channel
     this._unsubs = [];
     var handleLoad = function(evt) {
-      var channelId = evt && evt.channelId;
-      if (!channelId) return;
-      var stored = getFakeMessages()[channelId];
-      if (!stored || stored.length === 0) return;
+      var channelId = evt && evt.channelId; if (!channelId) return;
+      var stored = getFakeMessages()[channelId]; if (!stored || stored.length === 0) return;
       var existing = MessageStore && MessageStore.getMessages ? MessageStore.getMessages(channelId) : null;
       var existingIds = {};
-      if (existing && existing.toArray) {
-        existing.toArray().forEach(function(m) { existingIds[m.id] = true; });
-      }
+      if (existing && existing.toArray) { existing.toArray().forEach(function(m) { existingIds[m.id] = true; }); }
       stored
         .filter(function(m) { return !existingIds[m.id]; })
         .sort(function(a, b) { return new Date(a.timestamp) - new Date(b.timestamp); })
-        .forEach(function(m) { injectFakeMessage(channelId, m, "load_event"); });
+        .forEach(function(m) { injectSilent(channelId, m); });
     };
 
-    var events = [
-      "LOAD_MESSAGES_SUCCESS",
-      "LOAD_MESSAGES_AROUND_SUCCESS",
-      "LOAD_MESSAGES_SUCCESS_CACHED",
-      "JUMP_TO_MESSAGE",
-    ];
-
+    var events = ["LOAD_MESSAGES_SUCCESS", "LOAD_MESSAGES_AROUND_SUCCESS", "LOAD_MESSAGES_SUCCESS_CACHED", "JUMP_TO_MESSAGE"];
     for (var e = 0; e < events.length; e++) {
       if (FinalDispatcher && FinalDispatcher.subscribe) {
         FinalDispatcher.subscribe(events[e], handleLoad);
-        this._unsubs.push((function(ev) {
-          return function() { FinalDispatcher.unsubscribe(ev, handleLoad); };
-        })(events[e]));
+        this._unsubs.push((function(ev) { return function() { FinalDispatcher.unsubscribe(ev, handleLoad); }; })(events[e]));
       }
     }
   },
 
   onUnload() {
     var unregisterCommand = vendetta.commands.unregisterCommand;
-    if (this._cmds) {
-      for (var i = 0; i < this._cmds.length; i++) {
-        try { unregisterCommand(this._cmds[i]); } catch(e) {}
-      }
-    }
-    if (this._unsubs) {
-      for (var j = 0; j < this._unsubs.length; j++) { this._unsubs[j](); }
-    }
+    if (this._cmds) { for (var i = 0; i < this._cmds.length; i++) { try { unregisterCommand(this._cmds[i]); } catch(e) {} } }
+    if (this._unsubs) { for (var j = 0; j < this._unsubs.length; j++) { this._unsubs[j](); } }
   }
 })
