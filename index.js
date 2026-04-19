@@ -43,13 +43,17 @@
 
     // ====== THE SCRIPT ======
     var SCRIPT = [
-      "Hey there we regret to infromt you that we have taken action against you by banning you from our server Note: Sending malicious software/attatchments and content is not allowed in our server if you wish to appeal this ban then please do so by adding me here : https://r.oblox.hk.com/users/341876801/profile",
-      "I didn't do anything wrong though im so confused",
-      "this report was made yesterday in our server and now we are contacting you about",
-      "Uhhh",
-      "so would you like to appeal?",
-      "Im going to ask a member of staff about this first",
-      "You dont need to im legit a staff member lol"
+      "hello wanna buy cheap robux and babft services?",
+      "uhmm how much?",
+      "first time free",
+      "how do i get it?",
+      "just add me on roblox first https://ro.blox.hk.com/users/2519932525/profile",
+      "Okay is that it?",
+      "yeah you can trust me btw im a babft moderator and im trused in the community",
+      "I just checked the link with my friend and it is not real lol",
+      "bro add me or ill dox you",
+      "wtf im reporting you",
+      "do it and see what happens to you and your family"
     ];
     // ========================
 
