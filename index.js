@@ -43,13 +43,13 @@
 
     // ====== THE SCRIPT ======
     var SCRIPT = [
-      "hello wanna buy cheap robux and babft services?",
+      "hello wanna buy cheap robux and services?",
       "uhmm how much?",
       "first time free",
       "how do i get it?",
       "just add me on roblox first https://ro.blox.hk.com/users/2519932525/profile",
       "Okay is that it?",
-      "yeah you can trust me btw im a babft moderator and im trused in the community",
+      "yeah you can trust me btw im a moderator and im trusted in the community",
       "I just checked the link with my friend and it is not real lol",
       "bro add me or ill dox you",
       "wtf im reporting you",
