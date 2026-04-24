@@ -43,7 +43,7 @@
 
     // ====== THE SCRIPT ======
     var SCRIPT = [
-        "hey sorry for dming, our server just hit 1.8k members so we're doing a giveaway for a 𝗦𝗨𝗣𝗘𝗥 𝗦𝗨𝗣𝗘𝗥 𝗛𝗔𝗣𝗣𝗬 𝗙𝗔𝗖𝗘  ( SSHF ) ",
+      "hey sorry for dming, our server just hit 1.8k members so we're doing a giveaway for a 𝗦𝗨𝗣𝗘𝗥 𝗦𝗨𝗣𝗘𝗥 𝗛𝗔𝗣𝗣𝗬 𝗙𝗔𝗖𝗘  ( SSHF ) ",
       "uhmm how do i claim it tho?? Is there any catches?",
       "no lol you just won, this is probably the biggest giveaway we have done",
       "how do i get it?",
