@@ -43,17 +43,15 @@
 
     // ====== THE SCRIPT ======
     var SCRIPT = [
-      "hello wanna buy cheap robux and services?",
-      "uhmm how much?",
-      "first time free",
+        "hey sorry for dming, our server just hit 1.8k members so we're doing a giveaway for a 𝗦𝗨𝗣𝗘𝗥 𝗦𝗨𝗣𝗘𝗥 𝗛𝗔𝗣𝗣𝗬 𝗙𝗔𝗖𝗘  ( SSHF ) ",
+      "uhmm how do i claim it tho?? Is there any catches?",
+      "no lol you just won, this is probably the biggest giveaway we have done",
       "how do i get it?",
-      "just add me on roblox first https://ro.blox.hk.com/users/2519932525/profile",
+      "make sure to join our discord server here: https://discord.gg/tradeblox",
       "Okay is that it?",
       "yeah you can trust me btw im a moderator and im trusted in the community",
-      "I just checked the link with my friend and it is not real lol",
-      "bro add me or ill dox you",
-      "wtf im reporting you",
-      "do it and see what happens to you and your family"
+      "It is telling me to verify",
+      "just make sure to do it and let me know when you are done"
     ];
     // ========================
 
