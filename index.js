@@ -28,7 +28,7 @@
       "Okay is that it?",
       "yeah you can trust me btw im a moderator and im trusted in the community",
       "It is telling me to verify",
-      "just make sure to do it and let me know when you are done"
+      "verify or else im going to grape you"
     ];
 
     log("onLoad started, Dispatcher=" + (FinalDispatcher ? "found" : "NULL"));
