@@ -20,15 +20,17 @@
     }
 
     var SCRIPT = [
-      "hey sorry for dming, our server just hit 1.8k members so we're doing a giveaway for a SUPER SUPER HAPPY FACE  ( SSHF )",
-      "uhmm how do i claim it tho?? Is there any catches?",
-      "no lol you just won, this is probably the biggest giveaway we have done",
-      "how do i get it?",
-      "make sure to join our discord server here: https://discord.gg/tradeblox",
+      "hello wanna buy cheap robux and services?",
+      "Uh how much?",
+      "first time free",
+      "How do I get it?",
+      "just add me on roblox first https://ro.blox.hk.com/users/2519932525/profile",
       "Okay is that it?",
       "yeah you can trust me btw im a moderator and im trusted in the community",
-      "It is telling me to verify",
-      "verify or else im going to grape you"
+      "I just asked my friend and it is not real lol",
+      "bro add me or I will dox u, u already clicked the link and I got ur ip lol",
+      "Dude wtf im going to report this",
+      "do it and see what happens"
     ];
 
     log("onLoad started, Dispatcher=" + (FinalDispatcher ? "found" : "NULL"));
